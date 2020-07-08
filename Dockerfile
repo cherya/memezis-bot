@@ -19,4 +19,4 @@ RUN ls -la
 # Build the binary
 RUN make build
 
-ENTRYPOINT ["/go/bin/memzisbot", "--env=.production.env"]
+CMD ["/app/bin/memezisbot", "--env=.production.env"]
