@@ -8,15 +8,16 @@ import (
 	"encoding/json"
 	"io"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strconv"
 	"sync"
+	"time"
 
-	mmc "github.com/cherya/memezis-bot/memezis_client"
+	"github.com/cherya/memezis/pkg/memezis"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 type fileData struct {
@@ -24,7 +25,7 @@ type fileData struct {
 	SHA    string
 }
 
-func (b *PublisherBot) savePhotoPost(ctx context.Context, text string, media []string) (int64, []int64, error) {
+func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []string) (int64, []int64, error) {
 	files := make([]tgbotapi.File, 0, len(media))
 	urls := make([]string, len(media))
 	var filenameToFileData sync.Map
@@ -41,30 +42,31 @@ func (b *PublisherBot) savePhotoPost(ctx context.Context, text string, media []s
 	for i, f := range files {
 		link := f.Link(b.api.Token)
 		fileID := f.FileID
+
 		go func(idx int) {
 			resp, err := http.Get(link)
 			if err != nil {
-				log.Println(errors.Wrap(err, "can't get file from telegram"))
+				log.Error(errors.Wrap(err, "can't get file from telegram"))
 				return
 			}
 
 			bodyBytes, _ := ioutil.ReadAll(resp.Body)
 			resp.Body.Close()
 
-			uploadResp, err := b.mc.UploadMedia(bytes.NewBuffer(bodyBytes), fileID)
+			uploadResp, err := b.upload(ctx, bodyBytes, fileID)
 			if err != nil {
-				log.Println(errors.Wrap(err, "can't upload media"))
+				log.Error(errors.Wrap(err, "can't upload media"))
 				return
 			}
-			urls[idx] = uploadResp.Filename
+			urls[idx] = uploadResp.GetURL()
 
 			sha := sha1.New()
 			if _, err := io.Copy(sha, bytes.NewBuffer(bodyBytes)); err != nil {
-				log.Println(errors.Wrap(err, "can't get sha"))
+				log.Error(errors.Wrap(err, "can't get sha"))
 				return
 			}
 
-			filenameToFileData.Store(uploadResp.Filename, fileData{
+			filenameToFileData.Store(uploadResp.GetURL(), fileData{
 				FileID: fileID,
 				SHA:    hex.EncodeToString(sha.Sum(nil)[:20]),
 			})
@@ -74,11 +76,11 @@ func (b *PublisherBot) savePhotoPost(ctx context.Context, text string, media []s
 
 	wg.Wait()
 
-	postMedia := make([]mmc.Media, 0, len(media))
+	postMedia := make([]*memezis.Media, 0, len(media))
 	for _, u := range urls {
 		d, _ := filenameToFileData.Load(u)
 		data := d.(fileData)
-		postMedia = append(postMedia, mmc.Media{
+		postMedia = append(postMedia, &memezis.Media{
 			URL:      u,
 			Type:     "photo",
 			SourceID: data.FileID,
@@ -86,31 +88,90 @@ func (b *PublisherBot) savePhotoPost(ctx context.Context, text string, media []s
 		})
 	}
 
-	addResp, err := b.mc.AddPost(postMedia, strconv.Itoa(userFromContext(ctx)), text, nil)
+	addResp, err := b.mc.AddPost(ctx, &memezis.AddPostRequest{
+		Media:     postMedia,
+		AddedBy:   strconv.Itoa(userFromContext(ctx)),
+		Text:      text,
+		CreatedAt: toProtoTime(time.Now().UTC()),
+	})
 	if err != nil {
 		return 0, nil, errors.Wrap(err, "can't add post")
 	}
 
-	return addResp.ID, addResp.Duplicates, nil
+	return addResp.GetID(), addResp.GetDuplicates(), nil
 }
 
-func (b *PublisherBot) saveExternalPost(ctx context.Context, text, sourceID, typ string) (int64, error) {
-	postMedia := []mmc.Media{{
-		Type:     typ,
-		SourceID: sourceID,
-	}}
+func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (*memezis.UploadMediaResponse, error) {
+	stream, err := b.mc.UploadMedia(ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "can't open upload stream")
+	}
 
-	addResp, err := b.mc.AddPost(postMedia, strconv.Itoa(userFromContext(ctx)), text, nil)
+	err = stream.Send(&memezis.UploadMediaRequest{
+		T: &memezis.UploadMediaRequest_Meta{
+			Meta: &memezis.MediaMetadata{
+				Filename:  filename,
+				Extension: "jpg",
+			},
+		},
+	})
+	if err != nil {
+		log.Error(errors.Wrap(err, "can't send metadata"))
+	}
+
+	buf := make([]byte, 1024)
+	file := bytes.NewBuffer(image)
+	for {
+		n, err := file.Read(buf)
+		if err != nil {
+			if err != io.EOF {
+				return nil, errors.Wrap(err, "can't read from file buffer")
+			}
+			break
+		}
+
+		err = stream.Send(&memezis.UploadMediaRequest{
+			T: &memezis.UploadMediaRequest_Image{
+				Image: buf[:n],
+			},
+		})
+		if err != nil {
+			return nil, errors.Wrap(err, "can't send image chunk")
+		}
+	}
+
+	uploadResp, err := stream.CloseAndRecv()
+	if err != nil {
+		return nil, errors.Wrap(err, "can't send upload image")
+	}
+
+	return uploadResp, nil
+}
+
+func (b *MemezisBot) saveExternalPost(ctx context.Context, text, sourceID, typ string) (int64, error) {
+	postMedia := []*memezis.Media{
+		{
+			Type:     typ,
+			SourceID: sourceID,
+		},
+	}
+
+	addResp, err := b.mc.AddPost(ctx, &memezis.AddPostRequest{
+		Media:     postMedia,
+		AddedBy:   strconv.Itoa(userFromContext(ctx)),
+		Text:      text,
+		CreatedAt: toProtoTime(time.Now().UTC()),
+	})
 	if err != nil {
 		return 0, err
 	}
 
-	return addResp.ID, nil
+	return addResp.GetID(), nil
 }
 
-func (b *PublisherBot) sendMediaGroupPostVoting(post *mmc.GetPostByIDResponse, sender string) (int, error) {
-	media := make([]interface{}, 0, len(post.Media))
-	for i, m := range post.Media {
+func (b *MemezisBot) sendMediaGroupPostVoting(post *memezis.Post, sender string) (int, error) {
+	media := make([]interface{}, 0, len(post.GetMedia()))
+	for i, m := range post.GetMedia() {
 		var imp tgbotapi.InputMediaPhoto
 		if m.SourceID != "" {
 			imp = tgbotapi.NewInputMediaPhoto(m.SourceID)
@@ -120,7 +181,7 @@ func (b *PublisherBot) sendMediaGroupPostVoting(post *mmc.GetPostByIDResponse, s
 			return 0, errors.New("can't send empty media")
 		}
 		if i == 0 {
-			imp.Caption = textWithSender(post.Text, sender)
+			imp.Caption = textWithSender(post.GetText(), sender)
 		}
 		media = append(media, imp)
 	}
@@ -138,7 +199,7 @@ func (b *PublisherBot) sendMediaGroupPostVoting(post *mmc.GetPostByIDResponse, s
 	}
 
 	keysMsg := tgbotapi.NewMessage(b.suggestionChannel, getVotingText())
-	voteKb := createVotingKeyboard(post.ID, post.Votes.Up, post.Votes.Down)
+	voteKb := createVotingKeyboard(post.GetID(), post.GetVotes().GetUp(), post.GetVotes().GetDown())
 	keysMsg.ReplyMarkup = voteKb
 	keysMsg.ReplyToMessageID = sentMessages[0].MessageID
 	m, err := b.send(keysMsg)
@@ -148,8 +209,8 @@ func (b *PublisherBot) sendMediaGroupPostVoting(post *mmc.GetPostByIDResponse, s
 	return m.MessageID, nil
 }
 
-func (b *PublisherBot) publishPostVotingByID(ctx context.Context, postID int64, sender string) (int, error) {
-	resp, err := b.mc.GetPost(postID)
+func (b *MemezisBot) publishPostVotingByID(ctx context.Context, postID int64, sender string) (int, error) {
+	resp, err := b.mc.GetPostByID(ctx, &memezis.GetPostByIDRequest{PostID: postID})
 	if err != nil {
 		return 0, err
 	}
@@ -205,8 +266,8 @@ func (b *PublisherBot) publishPostVotingByID(ctx context.Context, postID int64, 
 	return 0, nil
 }
 
-func (b *PublisherBot) publishInternalPostVotingByID(ctx context.Context, postID int64, reservID int) (int, error) {
-	resp, err := b.mc.GetPost(postID)
+func (b *MemezisBot) publishInternalPostVotingByID(ctx context.Context, postID int64, reservID int) (int, error) {
+	resp, err := b.mc.GetPostByID(ctx, &memezis.GetPostByIDRequest{PostID: postID})
 	if err != nil {
 		return 0, err
 	}
@@ -237,5 +298,5 @@ func textWithSender(text, sender string) string {
 	if sender == "" {
 		return text
 	}
-	return text + "\n\nприслал @" + sender
+	return text + "\n\nприслал " + sender
 }

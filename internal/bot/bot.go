@@ -3,14 +3,14 @@ package bot
 import (
 	"context"
 	"fmt"
-	"log"
+	"github.com/cherya/memezis-bot/internal/dailyword"
+	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
-	mmc "github.com/cherya/memezis-bot/memezis_client"
-
+	"github.com/cherya/memezis/pkg/memezis"
 	"github.com/cherya/memezis/pkg/queue"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
@@ -23,10 +23,11 @@ type Ban interface {
 	IsBanned(u string) (bool, error)
 }
 
-type PublisherBot struct {
+type MemezisBot struct {
 	api                *tgbotapi.BotAPI
-	mc                 *mmc.Client
+	mc                 memezis.MemezisClient
 	qm                 *queue.Manager
+	wg                 *dailyword.WordGenerator
 	publicationChannel int64
 	suggestionChannel  int64
 	ownerID            int
@@ -34,17 +35,18 @@ type PublisherBot struct {
 	limiter            <-chan time.Time
 }
 
-func NewBot(token string, queue *queue.Manager, mc *mmc.Client, ban Ban, pubChan, sugChan int64, ownerID int) (*PublisherBot, error) {
+func NewBot(token string, queue *queue.Manager, mc memezis.MemezisClient, wg *dailyword.WordGenerator, ban Ban, pubChan, sugChan int64, ownerID int) (*MemezisBot, error) {
 	api, err := tgbotapi.NewBotAPI(token)
 	if err != nil {
 		return nil, errors.Wrap(err, "NewBot: error creating bot api")
 	}
 	//api.Debug = true
 
-	pb := &PublisherBot{
+	pb := &MemezisBot{
 		api:                api,
 		mc:                 mc,
 		qm:                 queue,
+		wg:                 wg,
 		publicationChannel: pubChan,
 		suggestionChannel:  sugChan,
 		ownerID:            ownerID,
@@ -52,12 +54,12 @@ func NewBot(token string, queue *queue.Manager, mc *mmc.Client, ban Ban, pubChan
 		limiter:            time.Tick(3 * time.Second),
 	}
 
-	pb.qm.ConsumeWithDelay(ShaurmemesQueue, pb.ShaurmemesConsumer)
+	pb.qm.Consume(context.Background(), ShaurmemesQueue, time.Second*10, pb.ShaurmemesConsumer)
 
 	return pb, nil
 }
 
-func (b *PublisherBot) SetWebhook(config tgbotapi.WebhookConfig) (tgbotapi.APIResponse, error) {
+func (b *MemezisBot) SetWebhook(config tgbotapi.WebhookConfig) (tgbotapi.APIResponse, error) {
 
 	if config.Certificate == nil {
 		p := tgbotapi.Params{}
@@ -83,7 +85,7 @@ func (b *PublisherBot) SetWebhook(config tgbotapi.WebhookConfig) (tgbotapi.APIRe
 	return resp, nil
 }
 
-func (b *PublisherBot) updatesFromWebhook() tgbotapi.UpdatesChannel {
+func (b *MemezisBot) updatesFromWebhook() tgbotapi.UpdatesChannel {
 	_, err := b.SetWebhook(tgbotapi.NewWebhook("https://telegram7fdf94d0d3314c5aa1b6dd9f04317dd2.duckdns.org/telegram/" + b.api.Token))
 	if err != nil {
 		log.Fatal(err)
@@ -93,20 +95,20 @@ func (b *PublisherBot) updatesFromWebhook() tgbotapi.UpdatesChannel {
 		log.Fatal(err)
 	}
 	if info.LastErrorDate != 0 {
-		log.Printf("Telegram callback failed: %s", info.LastErrorMessage)
+		log.Error("Telegram callback failed: %s", info.LastErrorMessage)
 	}
 	updates := b.api.ListenForWebhook("/")
 	go func() {
 		err := http.ListenAndServeTLS("0.0.0.0:8443", "keys/fullchain.pem", "keys/privkey.pem", nil)
 		if err != nil {
-			log.Println("webhook server error", err)
+			log.Error("webhook server error", err)
 		}
 	}()
 
 	return updates
 }
 
-func (b *PublisherBot) updatesFromPoll() tgbotapi.UpdatesChannel {
+func (b *MemezisBot) updatesFromPoll() tgbotapi.UpdatesChannel {
 	p := tgbotapi.Params{}
 	p.AddNonEmpty("url", "https://telegram7fdf94d0d3314c5aa1b6dd9f04317dd2.duckdns.org/telegram/"+b.api.Token)
 	_, err := b.api.MakeRequest("deleteWebhook", p)
@@ -121,7 +123,7 @@ func (b *PublisherBot) updatesFromPoll() tgbotapi.UpdatesChannel {
 	return updates
 }
 
-func (b *PublisherBot) messageWorker(ctx context.Context, id int, messages <-chan *tgbotapi.Message, errs chan<- error) {
+func (b *MemezisBot) messageWorker(ctx context.Context, id int, messages <-chan *tgbotapi.Message, errs chan<- error) {
 	for message := range messages {
 		//log.Printf("message worker %d takes message %d\n", id, message.MessageID)
 
@@ -146,7 +148,6 @@ func (b *PublisherBot) messageWorker(ctx context.Context, id int, messages <-cha
 				errs <- errors.Wrap(err, "error handling message")
 			}
 		} else if message.Chat.IsPrivate() {
-
 			if !hasMedia(message) {
 				_, err := b.send(tgbotapi.NewMessage(message.Chat.ID, unsupportedText))
 				if err != nil {
@@ -162,9 +163,9 @@ func (b *PublisherBot) messageWorker(ctx context.Context, id int, messages <-cha
 	}
 }
 
-func (b *PublisherBot) callbackWorker(ctx context.Context, id int, callbacks <-chan *tgbotapi.CallbackQuery, errs chan<- error) {
+func (b *MemezisBot) callbackWorker(ctx context.Context, id int, callbacks <-chan *tgbotapi.CallbackQuery, errs chan<- error) {
 	for callback := range callbacks {
-		log.Printf("callback worker %d takes callback %d\n", id, callback.Message.MessageID)
+		//log.Printf("callback worker %d takes callback %d\n", id, callback.Message.MessageID)
 
 		userID := b.userFromUpdate(callback)
 		ctx = setUserToContext(ctx, userID)
@@ -176,13 +177,13 @@ func (b *PublisherBot) callbackWorker(ctx context.Context, id int, callbacks <-c
 	}
 }
 
-func (b *PublisherBot) Start() error {
-	log.Printf("Authorized on account %s", b.api.Self.UserName)
+func (b *MemezisBot) Start() error {
+	log.Infof("Authorized on account %s", b.api.Self.UserName)
 
 	updates := b.updatesFromPoll()
 	errs := make(chan error)
-	messages := make(chan *tgbotapi.Message)
-	callback := make(chan *tgbotapi.CallbackQuery)
+	messages := make(chan *tgbotapi.Message, 5)
+	callback := make(chan *tgbotapi.CallbackQuery, 5)
 
 	const messageWorkersAmount = 5
 	for i := 0; i < messageWorkersAmount; i++ {
@@ -215,12 +216,12 @@ func (b *PublisherBot) Start() error {
 	}
 }
 
-func (b *PublisherBot) send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+func (b *MemezisBot) send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 	<-b.limiter
 	return b.api.Send(c)
 }
 
-func (b *PublisherBot) userFromUpdate(u interface{}) int {
+func (b *MemezisBot) userFromUpdate(u interface{}) int {
 	switch u.(type) {
 	case *tgbotapi.Message:
 		return u.(*tgbotapi.Message).From.ID
@@ -235,11 +236,11 @@ func (b *PublisherBot) userFromUpdate(u interface{}) int {
 	}
 }
 
-func (b *PublisherBot) Stop() {
+func (b *MemezisBot) Stop() {
 	b.api.StopReceivingUpdates()
 }
 
-func (b *PublisherBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgbotapi.Message) error {
+func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgbotapi.Message) error {
 	var postID int64
 	var duplicates []int64
 	var err error
@@ -306,8 +307,8 @@ func (b *PublisherBot) handleDirectSuggestionMessage(ctx context.Context, msg *t
 	return nil
 }
 
-// хэндлер сообщений в личку боту
-func (b *PublisherBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.Message) error {
+// хэндлер сообщений (не команд) в личку боту
+func (b *MemezisBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.Message) error {
 	text := msg.Text
 	if text == "" {
 		text = msg.Caption
@@ -316,6 +317,13 @@ func (b *PublisherBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.M
 	if msg.MediaGroupID != "" && msg.Photo != nil {
 		b.handleMediaGroup(ctx, msg)
 		return nil
+	}
+
+	m := tgbotapi.NewMessage(msg.Chat.ID, getSuccessText())
+	m.ReplyToMessageID = msg.MessageID
+	_, err := b.send(m)
+	if err != nil {
+		return errors.Wrap(err, "handlePrivateMessage: can't send message")
 	}
 
 	if msg.Photo != nil {
@@ -363,19 +371,25 @@ func (b *PublisherBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.M
 		return nil
 	}
 
-	m := tgbotapi.NewMessage(msg.Chat.ID, getSuccessText())
-	m.ReplyToMessageID = msg.MessageID
-	m.DisableNotification = true
-	_, err := b.send(m)
-	if err != nil {
-		return errors.Wrap(err, "handlePrivateMessage: can't send message")
-	}
 	return nil
 }
 
-func (b *PublisherBot) handleCommand(msg *tgbotapi.Message) {
+const (
+	// temporary ban
+	BAN = "ban"
+	// permanent ban
+	PERMABAN = "permaban"
+	// remove from ban
+	UNBAN = "unban"
+	// get queue status
+	QUEUE = "queue"
+	// get gender of the day
+	GENDER = "gender"
+)
+
+func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 	cmd := msg.Command()
-	// only ban command need arguments
+	// now only ban command need arguments
 	toBan := msg.CommandArguments()
 
 	if isAdminCommand(cmd) && msg.From.ID != b.ownerID {
@@ -384,44 +398,66 @@ func (b *PublisherBot) handleCommand(msg *tgbotapi.Message) {
 
 	var m tgbotapi.MessageConfig
 	switch cmd {
-	case "ban":
+	case BAN:
 		err := b.banHammer.Ban(toBan)
 		if err != nil {
-			log.Printf("can't ban %s. error: %s", toBan, err)
+			log.Errorf("can't ban %s. error: %s", toBan, err)
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
 		}
 		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("забанен"))
-	case "permaban":
+	case PERMABAN:
 		err := b.banHammer.Permaban(toBan)
 		if err != nil {
-			log.Printf("can't permaban %s. error: %s", toBan, err)
+			log.Errorf("can't permaban %s. error: %s", toBan, err)
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
 		}
 		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("совсем забанен"))
-	case "unban":
+	case UNBAN:
 		err := b.banHammer.Unban(toBan)
 		if err != nil {
-			log.Printf("can't unban %s. error: %s", toBan, err)
+			log.Errorf("can't unban %s. error: %s", toBan, err)
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
 		}
 		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("разбанен"))
-	case "queue":
-		qInfo, err := b.mc.QueueInfo(ShaurmemesQueue)
+	case QUEUE:
+		qInfo, err := b.mc.GetQueueInfo(context.Background(), &memezis.GetQueueInfoRequest{Queue: ShaurmemesQueue})
 		if err != nil {
-			log.Printf("can't unban %s. error: %s", toBan, err)
+			log.Errorf("can't unban %s. error: %s", toBan, err)
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
+			_, err := b.send(m)
+			if err != nil {
+				log.Errorf("can't ansewer to comand: %s", err)
+			}
+			return
 		}
 		if qInfo.Length == 0 {
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("в очереди ничего нет"))
 		} else {
-			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("постов в очереди: %d \nдо: %s", qInfo.Length, qInfo.DueTime.Format("15:04")))
+			due := fromProtoTime(qInfo.DueTime)
+			loc, err := time.LoadLocation("Europe/Moscow")
+			if err == nil {
+				due = due.In(loc)
+			}
+			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("постов в очереди: %d \nдо: %s", qInfo.Length, due.Format("15:04 MST")))
 		}
+	case GENDER:
+		g, err := b.wg.Get(strconv.FormatInt(msg.Chat.ID, 10))
+		if err != nil {
+			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
+			_, err := b.send(m)
+			if err != nil {
+				log.Errorf("can't ansewer to comand: %s", err)
+			}
+			return
+		}
+		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Гендер дня: *%s*", strings.ToUpper(g)))
 	}
 
 	m.ReplyToMessageID = msg.MessageID
+	m.ParseMode = tgbotapi.ModeMarkdown
 	_, err := b.send(m)
 	if err != nil {
-		log.Printf("can't ansewer to comand: %s", err)
+		log.Errorf("can't ansewer to comand: %s", err)
 	}
 }
 
@@ -436,7 +472,7 @@ func isAdminCommand(cmd string) bool {
 	return ok
 }
 
-func (b *PublisherBot) isBanned(message *tgbotapi.Message) bool {
+func (b *MemezisBot) isBanned(message *tgbotapi.Message) bool {
 	isBannedID, err := b.banHammer.IsBanned(strconv.Itoa(message.From.ID))
 	if err != nil {
 		fmt.Println(errors.Wrap(err, "can't check ban status"))

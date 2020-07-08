@@ -3,14 +3,19 @@ package bot
 import (
 	"context"
 	"encoding/json"
-
-	mmc "github.com/cherya/memezis-bot/memezis_client"
+	"github.com/cherya/memezis/pkg/memezis"
+	"strconv"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 )
 
-func (b *PublisherBot) callbackQuery(ctx context.Context, callback *tgbotapi.CallbackQuery) error {
+const (
+	PublishStatusEnqueued = "enqueued"
+	PublishStatusDeclined = "declined"
+)
+
+func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.CallbackQuery) error {
 	data := new(ButtonData)
 	err := json.Unmarshal([]byte(callback.Data), &data)
 	if err != nil {
@@ -22,7 +27,18 @@ func (b *PublisherBot) callbackQuery(ctx context.Context, callback *tgbotapi.Cal
 	switch data.ActionType {
 	// voting buttons
 	case callbackActionTypeUpVote, callbackActionTypeDownVote:
-		resp, err := b.mc.VoteByPostID(data.PostID, userID, data.IsUp())
+		var resp *memezis.Vote
+		if data.IsUp() {
+			resp, err = b.mc.UpVote(ctx, &memezis.VoteRequest{
+				UserID: strconv.FormatInt(int64(userID), 10),
+				PostID: data.PostID,
+			})
+		} else {
+			resp, err = b.mc.DownVote(ctx, &memezis.VoteRequest{
+				UserID: strconv.FormatInt(int64(userID), 10),
+				PostID: data.PostID,
+			})
+		}
 		if err != nil {
 			return errors.Wrap(err, "callbackQuery: error voting post")
 		}
@@ -30,7 +46,7 @@ func (b *PublisherBot) callbackQuery(ctx context.Context, callback *tgbotapi.Cal
 		var markupUpdate tgbotapi.EditMessageReplyMarkupConfig
 
 		switch resp.Status {
-		case mmc.PublishStatusEnqueued, mmc.PublishStatusDeclined:
+		case PublishStatusEnqueued, PublishStatusDeclined:
 			markupUpdate = tgbotapi.NewEditMessageReplyMarkup(
 				b.suggestionChannel, callback.Message.MessageID, createVoteEndKeyboard(data.PostID, resp.Up, resp.Down))
 		default:
@@ -74,7 +90,7 @@ func (b *PublisherBot) callbackQuery(ctx context.Context, callback *tgbotapi.Cal
 }
 
 // AnswerCallbackQuery sends a response to an inline query callback.
-func (b *PublisherBot) AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error) {
+func (b *MemezisBot) AnswerCallbackQuery(config tgbotapi.CallbackConfig) (tgbotapi.APIResponse, error) {
 	p := tgbotapi.Params{}
 
 	p.AddNonEmpty("callback_query_id", config.CallbackQueryID)

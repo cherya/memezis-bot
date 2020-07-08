@@ -2,12 +2,13 @@ package bot
 
 import (
 	"context"
-	"log"
 	"sort"
 	"sync"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+
+	log "github.com/sirupsen/logrus"
 )
 
 type mediaValue struct {
@@ -53,35 +54,50 @@ var mediaGroups sync.Map
 // складываем сообщения по MediaGroupID, через 5 секунд забираем все что получилось
 // 2 секунды – огромный запас, кажется что все сообщения из одной группы приходят моментально
 // в апи нихуя нет, как делать нормально – неизвестно
-func (b *PublisherBot) handleMediaGroup(ctx context.Context, msg *tgbotapi.Message) {
+func (b *MemezisBot) handleMediaGroup(ctx context.Context, msg *tgbotapi.Message) {
 	text := msg.Text
 	if text == "" {
 		text = msg.Caption
 	}
 
-	if mg, ok := mediaGroups.LoadOrStore(msg.MediaGroupID, &mediaSlice{Values: []mediaValue{{
-		FileID:    getFileIDFromMsg(msg),
-		MessageID: msg.MessageID,
-	}}}); !ok {
+	ms := &mediaSlice{
+		Values: []mediaValue{
+			{
+				FileID:    getFileIDFromMsg(msg),
+				MessageID: msg.MessageID,
+			},
+		},
+	}
+
+	if mg, ok := mediaGroups.LoadOrStore(msg.MediaGroupID, ms); !ok {
 		go func(mediaGroupID string) {
 			time.Sleep(2 * time.Second)
+			m := tgbotapi.NewMessage(msg.Chat.ID, getSuccessText())
+			m.ReplyToMessageID = msg.MessageID
+			_, err := b.send(m)
+			if err != nil {
+				log.Error("handlePrivateMessage: can't send message", err)
+			}
+
 			val, _ := mediaGroups.Load(mediaGroupID)
 			media := val.(*mediaSlice)
 			postID, duplicates, err := b.savePhotoPost(ctx, text, media.GetSortedValues())
 			if err != nil {
-				log.Println("can't save post", err)
+				log.Error("can't save post", err)
+				return
 			}
 			mediaGroups.Delete(mediaGroupID)
 			mID, err := b.publishPostVotingByID(ctx, postID, getUsername(msg))
 			if err != nil {
-				log.Println("can't publish post voting", err)
+				log.Error("can't publish post voting", err)
+				return
 			}
 			if len(duplicates) > 0 {
 				m := tgbotapi.NewMessage(b.suggestionChannel, duplicateText)
 				m.ReplyToMessageID = mID
 				_, err := b.send(m)
 				if err != nil {
-					log.Println("can't send message", err)
+					log.Error("can't send message", err)
 				}
 			}
 		}(msg.MediaGroupID)

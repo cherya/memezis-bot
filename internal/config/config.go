@@ -27,7 +27,7 @@ func GetValue(key configKey) string {
 func GetInt(key configKey) int {
 	val, err := strconv.Atoi(os.Getenv(string(key)))
 	if err != nil {
-		panic(fmt.Sprintf("%s env value is not integer"), string(key))
+		panic(fmt.Sprintf("%s env value is not integer", string(key)))
 	}
 	return val
 }

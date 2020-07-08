@@ -17,6 +17,6 @@ RUN pwd
 RUN ls -la
 
 # Build the binary
-RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -a -o /go/bin/suggestion-bot
+RUN make build
 
-ENTRYPOINT ["/go/bin/suggestion-bot", "--env=.production.env"]
+ENTRYPOINT ["/go/bin/memzisbot", "--env=.production.env"]
