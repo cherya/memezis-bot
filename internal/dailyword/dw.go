@@ -92,7 +92,19 @@ func getWords() (string, error) {
 		title = strings.Replace(title, r, "", -1)
 	}
 
+	title = trimBrackets(title)
+
 	return title, nil
+}
+
+func trimBrackets(s string) string {
+	s = strings.TrimSpace(s)
+	if strings.LastIndex(s, ")") == len(s)-1 {
+		idx := strings.LastIndex(s, "(")
+		s = s[:idx]
+	}
+	s = strings.TrimSpace(s)
+	return s
 }
 
 func getOne() ([]byte, error) {
