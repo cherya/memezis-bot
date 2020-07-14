@@ -215,7 +215,7 @@ $RECYCLE.BIN/
 
 # End of https://www.gitignore.io/api/go,code,linux,macos,windows,intellij,sublimetext
 
-.production.env
+production.env
 local.env
 /keys
 /mongo

@@ -20,4 +20,4 @@ RUN ls -la
 # Build the binary
 RUN make build
 
-CMD ["/app/bin/memezisbot", "--env=.production.env"]
+CMD ["/app/bin/memezisbot", "--env=production.env"]
