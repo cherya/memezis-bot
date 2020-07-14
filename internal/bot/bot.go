@@ -16,13 +16,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-type Ban interface {
-	Ban(u string) error
-	Permaban(u string) error
-	Unban(u string) error
-	IsBanned(u string) (bool, error)
-}
-
 type MemezisBot struct {
 	api                *tgbotapi.BotAPI
 	mc                 memezis.MemezisClient
@@ -33,6 +26,13 @@ type MemezisBot struct {
 	ownerID            int
 	banHammer          Ban
 	limiter            <-chan time.Time
+}
+
+type Ban interface {
+	Ban(u string) error
+	Permaban(u string) error
+	Unban(u string) error
+	IsBanned(u string) (bool, error)
 }
 
 func NewBot(token string, queue *queue.Manager, mc memezis.MemezisClient, wg *dailyword.WordGenerator, ban Ban, pubChan, sugChan int64, ownerID int) (*MemezisBot, error) {
@@ -153,6 +153,11 @@ func (b *MemezisBot) messageWorker(ctx context.Context, id int, messages <-chan 
 				if err != nil {
 					errs <- errors.Wrap(err, "error sending message")
 				}
+				f := tgbotapi.NewForward(b.suggestionChannel, message.Chat.ID, message.MessageID)
+				_, err = b.send(f)
+				if err != nil {
+					errs <- errors.Wrap(err, "error sending message")
+				}
 				continue
 			}
 			err := b.handlePrivateMessage(ctx, message)
@@ -217,7 +222,10 @@ func (b *MemezisBot) Start() error {
 }
 
 func (b *MemezisBot) send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
-	<-b.limiter
+	// limit all messages except callbacks
+	if _, ok := c.(tgbotapi.CallbackConfig); !ok {
+		<-b.limiter
+	}
 	return b.api.Send(c)
 }
 
