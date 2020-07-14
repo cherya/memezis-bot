@@ -5,8 +5,9 @@ WORKDIR /app
 COPY go.mod .
 COPY go.sum .
 
-RUN echo "[url \"git@github.com:\"]\n\tinsteadOf = https://github.com/" >> /root/.gitconfig
-RUN mkdir /root/.ssh && echo "StrictHostKeyChecking no " > /root/.ssh/config
+#private repo artifact
+#RUN echo "[url \"git@github.com:\"]\n\tinsteadOf = https://github.com/" >> /root/.gitconfig
+#RUN mkdir /root/.ssh && echo "StrictHostKeyChecking no " > /root/.ssh/config
 
 # Get dependancies - will also be cached if we won't change mod/sum
 RUN go mod download
