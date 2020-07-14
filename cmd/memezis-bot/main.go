@@ -63,7 +63,7 @@ func main() {
 	)
 
 	if err != nil {
-		log.Fatalf("Bot connection error:", err)
+		log.Fatalf("Bot connection error", err)
 		return
 	}
 
@@ -108,6 +108,6 @@ func initEnv() {
 func logEnv(env *string) {
 	envMap, _ := godotenv.Read(".env", *env)
 	for key, val := range envMap {
-		log.Infof("%s = %s\n", key, val)
+		log.Infof("%s = %s", key, val)
 	}
 }
