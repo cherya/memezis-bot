@@ -29,7 +29,7 @@ func getUsername(msg *tgbotapi.Message) string {
 	if msg.From.UserName != "" {
 		return "@" + msg.From.UserName
 	}
-	return fmt.Sprintf("[%s](tg://user?id=%s)", msg.From.String(), msg.From.ID)
+	return fmt.Sprintf("[%s](tg://user?id=%d)", msg.From.String(), msg.From.ID)
 }
 
 func fromProtoTime(timestamp *types.Timestamp) time.Time {
@@ -40,4 +40,8 @@ func fromProtoTime(timestamp *types.Timestamp) time.Time {
 func toProtoTime(time time.Time) *types.Timestamp {
 	t, _ := types.TimestampProto(time)
 	return t
+}
+
+func hasDuplicates(d *Duplicates) bool {
+	return len(d.Complete) > 0 || len(d.Likely) > 0 || len(d.Similar) > 0
 }

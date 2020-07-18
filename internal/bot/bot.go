@@ -250,7 +250,7 @@ func (b *MemezisBot) Stop() {
 
 func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgbotapi.Message) error {
 	var postID int64
-	var duplicates []int64
+	var duplicates *Duplicates
 	var err error
 	var reservMsg tgbotapi.Message
 
@@ -275,12 +275,12 @@ func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgb
 		m.ReplyToMessageID = msg.MessageID
 		reservMsg, err = b.send(m)
 
-		postID, duplicates, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)})
+		postID, duplicates, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
 		if err != nil {
 			return errors.Wrap(err, "handleDirectSuggestionMessage: can't save post")
 		}
-		if len(duplicates) > 0 {
-			m := tgbotapi.NewMessage(b.suggestionChannel, duplicateText)
+		if hasDuplicates(duplicates) {
+			m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
 			m.ReplyToMessageID = msg.MessageID
 			_, err := b.send(m)
 			if err != nil {
@@ -335,7 +335,7 @@ func (b *MemezisBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.Mes
 	}
 
 	if msg.Photo != nil {
-		postID, duplicates, err := b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)})
+		postID, duplicates, err := b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
 		if err != nil {
 			return errors.Wrap(err, "handlePrivateMessage: can't save post")
 		}
@@ -343,8 +343,8 @@ func (b *MemezisBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.Mes
 		if err != nil {
 			return errors.Wrap(err, "handlePrivateMessage: can't publish post voting")
 		}
-		if len(duplicates) > 0 {
-			m := tgbotapi.NewMessage(b.suggestionChannel, duplicateText)
+		if hasDuplicates(duplicates) {
+			m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
 			m.ReplyToMessageID = msgID
 			_, err := b.send(m)
 			if err != nil {

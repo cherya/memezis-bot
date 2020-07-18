@@ -12,6 +12,12 @@ github.com/census-instrumentation/opencensus-proto v0.2.1/go.mod h1:f6KPmirojxKA
 github.com/cherya/memezis v0.0.0-20200701120229-8fe2fc4cde54 h1:F211XUpcFGkuutAnQvmTRZTx6UnSJO3lyczRFFeP8p8=
 github.com/cherya/memezis/pkg/memezis v0.0.0-20200701120229-8fe2fc4cde54 h1:EEpmzrqLrZQxGlpjmCAVrzdbGRohwbw+a6CwL+u16yI=
 github.com/cherya/memezis/pkg/memezis v0.0.0-20200701120229-8fe2fc4cde54/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200710090010-67d32ce414e4 h1:4FF4HvF9wTjB7Ij3JAoD06kaA6qzEZaDxBHLc5nKLgU=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200710090010-67d32ce414e4/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200717121818-cd94e42350da h1:eqjUQzXBFDp+j8l+9FfFUGBPfgvxDDFApjDe7MaDX0s=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200717121818-cd94e42350da/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200717155514-9c44f874904c h1:DAnU5oV6YKr359IIJe3lnxDyco60ogOcu+/N0PKK4Ts=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20200717155514-9c44f874904c/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200524090745-0762110260e4 h1:J/3CGjt/2A23U3caSEy8S4HeT/1J/5ZKKz9tG2lcpbg=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200524090745-0762110260e4/go.mod h1:4VuI6ZJJZhx7O9VMtllkJ8ZXxtSewYPrwQ5iDOrqc8U=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200701120229-8fe2fc4cde54 h1:lGK0SAn820DbvOIfNOkcDPXXp4EX4PINSeE4DdD5EY4=

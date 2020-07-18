@@ -14,7 +14,6 @@ import (
 	"time"
 
 	"github.com/cherya/memezis/pkg/memezis"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 	log "github.com/sirupsen/logrus"
@@ -25,7 +24,13 @@ type fileData struct {
 	SHA    string
 }
 
-func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []string) (int64, []int64, error) {
+type Duplicates struct {
+	Complete []int64 // Complete full match
+	Likely   []int64 // Likely a bit difference, likely same pic
+	Similar  []int64 // Similar similar pics
+}
+
+func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []string, createdAt time.Time) (int64, *Duplicates, error) {
 	files := make([]tgbotapi.File, 0, len(media))
 	urls := make([]string, len(media))
 	var filenameToFileData sync.Map
@@ -98,7 +103,7 @@ func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []str
 		return 0, nil, errors.Wrap(err, "can't add post")
 	}
 
-	return addResp.GetID(), addResp.GetDuplicates(), nil
+	return addResp.GetID(), fromProtoDuplicates(addResp.GetDuplicates()), nil
 }
 
 func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (*memezis.UploadMediaResponse, error) {
@@ -107,11 +112,14 @@ func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (
 		return nil, errors.Wrap(err, "can't open upload stream")
 	}
 
+	file := bytes.NewBuffer(image)
+
 	err = stream.Send(&memezis.UploadMediaRequest{
 		T: &memezis.UploadMediaRequest_Meta{
 			Meta: &memezis.MediaMetadata{
-				Filename:  filename,
-				Extension: "jpg",
+				Filename: filename,
+				Type:     memezis.MediaType_JPG,
+				Filesize: int64(file.Len()),
 			},
 		},
 	})
@@ -120,7 +128,6 @@ func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (
 	}
 
 	buf := make([]byte, 1024)
-	file := bytes.NewBuffer(image)
 	for {
 		n, err := file.Read(buf)
 		if err != nil {
@@ -299,4 +306,24 @@ func textWithSender(text, sender string) string {
 		return text
 	}
 	return text + "\n\nприслал " + sender
+}
+
+func fromProtoDuplicates(duplicates *memezis.Duplicates) *Duplicates {
+	c := make([]int64, 0, len(duplicates.Complete))
+	for _, d := range duplicates.Complete {
+		c = append(c, d)
+	}
+	l := make([]int64, len(duplicates.Likely))
+	for _, d := range duplicates.Likely {
+		l = append(l, d)
+	}
+	s := make([]int64, len(duplicates.Similar))
+	for _, d := range duplicates.Similar {
+		s = append(s, d)
+	}
+	return &Duplicates{
+		Complete: c,
+		Likely:   l,
+		Similar:  s,
+	}
 }

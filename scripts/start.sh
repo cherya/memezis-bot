@@ -7,7 +7,7 @@ CONTAINER_NAME=memezis-bot
 IMAGE_NAME=docker.pkg.github.com/cherya/memezis-bot/memezis-bot:latest
 
 docker pull $IMAGE_NAME
-docker stop memezis-bot && docker rm memezis-bot
+docker stop $CONTAINER_NAME && docker rm $CONTAINER_NAME
 docker run --mount type=bind,source=$(pwd)/production.env,target=/app/production.env --name $CONTAINER_NAME -d --net=host -d $IMAGE_NAME
 
 if [ ! "$(docker ps -q -f name=$CONTAINER_NAME)" ]; then

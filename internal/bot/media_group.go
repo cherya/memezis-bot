@@ -81,24 +81,16 @@ func (b *MemezisBot) handleMediaGroup(ctx context.Context, msg *tgbotapi.Message
 
 			val, _ := mediaGroups.Load(mediaGroupID)
 			media := val.(*mediaSlice)
-			postID, duplicates, err := b.savePhotoPost(ctx, text, media.GetSortedValues())
+			postID, _, err := b.savePhotoPost(ctx, text, media.GetSortedValues(), msg.Time())
 			if err != nil {
 				log.Error("can't save post", err)
 				return
 			}
 			mediaGroups.Delete(mediaGroupID)
-			mID, err := b.publishPostVotingByID(ctx, postID, getUsername(msg))
+			_, err = b.publishPostVotingByID(ctx, postID, getUsername(msg))
 			if err != nil {
 				log.Error("can't publish post voting", err)
 				return
-			}
-			if len(duplicates) > 0 {
-				m := tgbotapi.NewMessage(b.suggestionChannel, duplicateText)
-				m.ReplyToMessageID = mID
-				_, err := b.send(m)
-				if err != nil {
-					log.Error("can't send message", err)
-				}
 			}
 		}(msg.MediaGroupID)
 	} else {

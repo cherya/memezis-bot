@@ -1,38 +1,62 @@
 package bot
 
-import "math/rand"
+import (
+	"math/rand"
+)
 
 var (
 	successTexts = []string{
 		"принято",
 		"найс",
-		"спс",
 		"кайф",
 		"спасибо",
 		"ваш мем очень важен для нас",
+		"надеюсь это не боян",
+		"посмотрим...",
+		"передал куда следует.",
 	}
 	votingTexts       = []string{"🌚", "💅🏻", "👆🏼", "💪🏾", "🐶", "🐱", "🐭", "🐹", "🐰", "🦊", "🦝", "🐻", "🐼", "🦘", "🦡", "🐨", "🐯", "🦁", "🐮", "🐷", "🐽", "🐸", "🐵", "🙈", "🙉", "🙊", "🐒", "🐔", "🐧", "🐦", "🐤", "🐣", "🐥", "🦆", "🦢", "🦅", "🦉", "🦚", "🦜", "🦇", "🐺", "🐗", "🐴", "🦄", "🐝", "🐛", "🦋", "🐌", "🐚", "🐞", "🐜", "🦗", "🕷", "🕸", "🦂", "🦟", "🦠", "🐢", "🐍", "🦎", "🦖", "🦕", "🐙", "🦑", "🦐", "🦀", "🐡", "🐠", "🐟", "🐬", "🐳", "🐋", "🦈", "🐊", "🐅", "🐆", "🦓", "🦍", "🐘", "🦏", "🦛", "🐪", "🐫", "🦙", "🦒", "🐃", "🐂", "🐄", "🐎", "🐖", "🐏", "🐑", "🐐", "🦌", "🐕", "🐩", "🐈", "🐓", "🦃", "🕊", "🐇", "🐁", "🐀", "🐿", "🦔", "🐾", "🐉", "🐲"}
-	duplicateText     = "возможно это боян"
 	unsupportedText   = "Я понимаю только фото, видео и гифки. Если есть предложения – пиши @cherya"
 	banText           = "тебя даже бот с мемами забанил, пиздец"
 	voteCallbackTexts = []string{"голос учтен", "постчитано", "запомнил", "как скажешь", "я не согласен, но ладно", "ок", "допустим", "записал"}
 	alreadyVotedTexts = []string{"ну ты дурак?", "че ты жмешь?", "да уже", "???", "#$%&@??"}
 	queuedText        = "уже в очереди"
 	declinedText      = "уже выкинул"
+
+	completeDuplicateTexts = []string{"сто процентов абсолютно точно боян", "БОЯН!!!", "Дед, таблетки"}
+	likelyDuplicateTexts = []string{"скорее всего это уже было"}
+	similarDuplicateTexts = []string{"было что то похожее. но это не точно"}
 )
 
 func getVoteCallbackTexts() string {
-	return voteCallbackTexts[rand.Intn(len(voteCallbackTexts))]
+	return randomText(voteCallbackTexts)
 }
 
 func getAlreadyVotedCallbackTexts() string {
-	return alreadyVotedTexts[rand.Intn(len(alreadyVotedTexts))]
+	return randomText(alreadyVotedTexts)
 }
 
 func getSuccessText() string {
-	return successTexts[rand.Intn(len(successTexts))]
+	return randomText(successTexts)
 }
 
 func getVotingText() string {
-	return votingTexts[rand.Intn(len(votingTexts))]
+	return randomText(votingTexts)
+}
+
+func randomText(t []string) string {
+	return t[rand.Intn(len(t))]
+}
+
+func getDuplicatesText(d *Duplicates) string {
+	if len(d.Complete) > 0 {
+		return randomText(completeDuplicateTexts)
+	}
+	if len(d.Likely) > 0 {
+		return randomText(likelyDuplicateTexts)
+	}
+	if len(d.Similar) > 0 {
+		return randomText(similarDuplicateTexts)
+	}
+	return ""
 }
