@@ -3,12 +3,8 @@ name: Docker
 on:
   push:
     # Publish `master` as Docker `latest` image.
-    # branches:
-    #   - master
-
-    # Publish `v1.2.3` tags as releases.
-    tags:
-      - v*
+     branches:
+       - master
 
 env:
   IMAGE_NAME: memezis-bot

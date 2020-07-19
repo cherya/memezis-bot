@@ -149,7 +149,7 @@ func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (
 
 	uploadResp, err := stream.CloseAndRecv()
 	if err != nil {
-		return nil, errors.Wrap(err, "can't send upload image")
+		return nil, errors.Wrap(err, "can't send image")
 	}
 
 	return uploadResp, nil
