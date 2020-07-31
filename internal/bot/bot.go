@@ -3,12 +3,13 @@ package bot
 import (
 	"context"
 	"fmt"
-	"github.com/cherya/memezis-bot/internal/dailyword"
-	log "github.com/sirupsen/logrus"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/cherya/memezis-bot/internal/dailyword"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/cherya/memezis/pkg/memezis"
 	"github.com/cherya/memezis/pkg/queue"
@@ -165,6 +166,9 @@ func (b *MemezisBot) messageWorker(ctx context.Context, id int, messages <-chan 
 				errs <- errors.Wrap(err, "error handling message")
 			}
 		} else {
+			if !strings.Contains(message.Text, "@"+b.api.Self.UserName) {
+				continue
+			}
 			err := b.handleChatMessage(ctx, message)
 			if err != nil {
 				errs <- errors.Wrap(err, "error handling chat message")
