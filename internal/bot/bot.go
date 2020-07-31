@@ -164,6 +164,11 @@ func (b *MemezisBot) messageWorker(ctx context.Context, id int, messages <-chan 
 			if err != nil {
 				errs <- errors.Wrap(err, "error handling message")
 			}
+		} else {
+			err := b.handleChatMessage(ctx, message)
+			if err != nil {
+				errs <- errors.Wrap(err, "error handling chat message")
+			}
 		}
 	}
 }
@@ -310,6 +315,68 @@ func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgb
 	_, err = b.publishInternalPostVotingByID(ctx, postID, reservMsg.MessageID)
 	if err != nil {
 		return errors.Wrap(err, "handleDirectSuggestionMessage: can't publish post voting")
+	}
+
+	return nil
+}
+
+func (b *MemezisBot) handleChatMessage(ctx context.Context, msg *tgbotapi.Message) error {
+	var postID int64
+	var duplicates *Duplicates
+	var err error
+
+	sender := getUsername(msg)
+	text := msg.Caption
+	text = strings.ReplaceAll(text, "@"+b.api.Self.UserName, "")
+	text = strings.TrimSpace(text)
+
+	if msg.ReplyToMessage == nil || !hasMedia(msg.ReplyToMessage) {
+		return nil
+	}
+
+	msg = msg.ReplyToMessage
+
+	if msg.Photo != nil {
+		m := tgbotapi.NewMessage(msg.Chat.ID, "украл")
+		m.ReplyToMessageID = msg.MessageID
+		_, err = b.send(m)
+
+		postID, duplicates, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
+		if err != nil {
+			return errors.Wrap(err, "handleChatMessage: can't save post")
+		}
+	} else if msg.Animation != nil {
+		m := tgbotapi.NewMessage(msg.Chat.ID, "украл")
+		m.ReplyToMessageID = msg.MessageID
+		_, err = b.send(m)
+
+		postID, err = b.saveExternalPost(ctx, text, getFileIDFromMsg(msg), "gif")
+		if err != nil {
+			return errors.Wrap(err, "handleChatMessage: can't save post")
+		}
+	} else if msg.Video != nil && msg.MediaGroupID == "" { // TODO handle video group
+		m := tgbotapi.NewMessage(msg.Chat.ID, "украл")
+		m.ReplyToMessageID = msg.MessageID
+		_, err = b.send(m)
+
+		postID, err = b.saveExternalPost(ctx, text, getFileIDFromMsg(msg), "video")
+		if err != nil {
+			return errors.Wrap(err, "handleChatMessage: can't save post")
+		}
+	}
+
+	votingMsgID, err := b.publishPostVotingByID(ctx, postID, sender)
+	if hasDuplicates(duplicates) {
+		m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
+		m.ReplyToMessageID = votingMsgID
+		_, err := b.send(m)
+		if err != nil {
+			return errors.Wrap(err, "handleChatMessage: can't send message")
+		}
+	}
+
+	if err != nil {
+		return errors.Wrap(err, "handleChatMessage: can't publish post voting")
 	}
 
 	return nil

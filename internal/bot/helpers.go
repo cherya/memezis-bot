@@ -43,5 +43,8 @@ func toProtoTime(time time.Time) *types.Timestamp {
 }
 
 func hasDuplicates(d *Duplicates) bool {
+	if d == nil {
+		return false
+	}
 	return len(d.Complete) > 0 || len(d.Likely) > 0 || len(d.Similar) > 0
 }
