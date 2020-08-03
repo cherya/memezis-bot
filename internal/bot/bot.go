@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/ptypes/empty"
 	"net/http"
 	"strconv"
 	"strings"
@@ -464,6 +465,8 @@ const (
 	QUEUE = "queue"
 	// get gender of the day
 	GENDER = "gender"
+	// get random meme
+	ROFL = "rofl"
 )
 
 func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
@@ -522,7 +525,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 	case GENDER:
 		g, err := b.wg.Get(strconv.FormatInt(msg.Chat.ID, 10))
 		if err != nil {
-			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
+			m := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так"))
 			_, err := b.send(m)
 			if err != nil {
 				log.Errorf("can't ansewer to comand: %s", err)
@@ -530,13 +533,34 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 			return
 		}
 		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("Гендер дня: *%s*", strings.ToUpper(g)))
+	case ROFL:
+		post, err := b.mc.GetRandomPost(context.Background(), &empty.Empty{})
+		if err != nil {
+			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так"))
+			_, err := b.send(m)
+			if err != nil {
+				log.Errorf("can't ansewer to comand: %s", err)
+			}
+			return
+		}
+
+		p := tgbotapi.NewPhotoUpload(msg.Chat.ID, nil)
+		p.FileID = post.Media[0].URL
+		p.UseExisting = true
+		p.Caption = post.Text
+		_, err = b.send(p)
+		if err != nil {
+			log.Errorf("can't ansewer to comand: %s", err)
+		}
 	}
 
-	m.ReplyToMessageID = msg.MessageID
-	m.ParseMode = tgbotapi.ModeMarkdown
-	_, err := b.send(m)
-	if err != nil {
-		log.Errorf("can't ansewer to comand: %s", err)
+	if m.Text != "" {
+		m.ReplyToMessageID = msg.MessageID
+		m.ParseMode = tgbotapi.ModeMarkdown
+		_, err := b.send(m)
+		if err != nil {
+			log.Errorf("can't ansewer to comand: %s", err)
+		}
 	}
 }
 

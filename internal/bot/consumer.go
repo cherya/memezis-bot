@@ -84,7 +84,9 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 	if len(resp.Media) == 1 {
 		media := resp.Media[0]
 		if media.Type == "photo" {
-			msg := tgbotapi.NewPhotoShare(b.publicationChannel, media.SourceID)
+			msg := tgbotapi.NewPhotoUpload(b.publicationChannel, nil)
+			msg.FileID = media.URL
+			msg.UseExisting = true
 			msg.Caption = resp.Text
 			resp, err := b.send(msg)
 			if err != nil {
