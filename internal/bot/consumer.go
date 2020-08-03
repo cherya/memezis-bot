@@ -3,7 +3,9 @@ package bot
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"strconv"
+	"time"
 
 	"github.com/cherya/memezis/pkg/memezis"
 
@@ -12,21 +14,26 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-const ShaurmemesQueue = "shaurmemes"
+const ShaurmemesQueue, ShaurmemesChannelName = "shaurmemes", "shaurmemes"
 const SourceMemezisBot = "memezis_bot"
 
+const ShaurmemesUrl = "https://t.me/shaurmemes/%d"
+
 type tgMessage struct {
-	MessageID int `json:"message_id"`
+	MessageID int   `json:"message_id"`
+	Date      int64 `json:"date"`
 }
 
 func (b *MemezisBot) ShaurmemesConsumer(value string) {
-	postID, err := strconv.Atoi(value)
+	var publishID int
+	var publishedAt time.Time
+	postID, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
 		log.Error(errors.Wrapf(err, "invalid postID: %s", value))
 		return
 	}
 	resp, err := b.mc.GetPostByID(context.Background(), &memezis.GetPostByIDRequest{
-		PostID: int64(postID),
+		PostID: postID,
 	})
 	if err != nil {
 		log.Error(errors.Wrapf(err, "can't get post by id (id=%d)", postID))
@@ -64,6 +71,8 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 				log.Error(errors.Wrap(err, "can't unmarshal telegram media group response"))
 				return
 			}
+			publishID = sentMessages[0].MessageID
+			publishedAt = time.Unix(sentMessages[0].Date, 0)
 		} else {
 			log.Error(errors.New("can't send media group from links"))
 			return
@@ -77,29 +86,47 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 		if media.Type == "photo" {
 			msg := tgbotapi.NewPhotoShare(b.publicationChannel, media.SourceID)
 			msg.Caption = resp.Text
-			_, err := b.send(msg)
+			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish proto"))
 				return
 			}
+			publishID = resp.MessageID
+			publishedAt = time.Unix(int64(resp.Date), 0)
 		} else if media.Type == "gif" {
 			msg := tgbotapi.NewAnimationShare(b.publicationChannel, media.SourceID)
 			msg.Caption = resp.Text
-			_, err := b.send(msg)
+			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish gif"))
 				return
 			}
+			publishID = resp.MessageID
+			publishedAt = time.Unix(int64(resp.Date), 0)
 		} else if media.Type == "video" {
 			msg := tgbotapi.NewVideoShare(b.publicationChannel, media.SourceID)
 			msg.Caption = resp.Text
-			_, err := b.send(msg)
+			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish video"))
 				return
 			}
+			publishID = resp.MessageID
+			publishedAt = time.Unix(int64(resp.Date), 0)
 		} else {
 			log.Warnf("consumer get unsupported media type (%s)", media.Type)
+		}
+	}
+
+	if postID != 0 {
+		_, err = b.mc.PublishPost(context.Background(), &memezis.PublishPostRequest{
+			PostID:      postID,
+			URL:         fmt.Sprintf(ShaurmemesUrl, publishID),
+			PublishedTo: ShaurmemesChannelName,
+			PublishedAt: toProtoTime(publishedAt),
+		})
+		if err != nil {
+			log.Error(errors.Wrap(err, "can't send post publish status"))
 		}
 	}
 

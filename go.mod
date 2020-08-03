@@ -1,7 +1,7 @@
 module github.com/cherya/memezis-bot
 
 require (
-	github.com/cherya/memezis/pkg/memezis v0.0.0-20200717155514-9c44f874904c
+	github.com/cherya/memezis/pkg/memezis v0.0.0-20200719143039-0bc3dedf0a76
 	github.com/cherya/memezis/pkg/queue v0.0.0-20200704133524-636b22b379bd
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.0.0-rc1
 	github.com/gocraft/work v0.5.1 // indirect
