@@ -46,5 +46,5 @@ func hasDuplicates(d *Duplicates) bool {
 	if d == nil {
 		return false
 	}
-	return len(d.Complete) > 0 || len(d.Likely) > 0 || len(d.Similar) > 0
+	return len(d.Complete) > 0 || len(d.Likely) > 0
 }

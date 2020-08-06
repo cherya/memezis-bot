@@ -25,7 +25,6 @@ var (
 
 	completeDuplicateTexts = []string{"сто процентов абсолютно точно боян", "БОЯН!!!", "Дед, таблетки"}
 	likelyDuplicateTexts = []string{"скорее всего это уже было"}
-	similarDuplicateTexts = []string{"было что то похожее. но это не точно"}
 )
 
 func getVoteCallbackTexts() string {
@@ -54,9 +53,6 @@ func getDuplicatesText(d *Duplicates) string {
 	}
 	if len(d.Likely) > 0 {
 		return randomText(likelyDuplicateTexts)
-	}
-	if len(d.Similar) > 0 {
-		return randomText(similarDuplicateTexts)
 	}
 	return ""
 }
