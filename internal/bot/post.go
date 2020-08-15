@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha1"
-	"encoding/hex"
 	"encoding/json"
 	"io"
 	"io/ioutil"
@@ -21,7 +20,6 @@ import (
 
 type fileData struct {
 	FileID string
-	SHA    string
 }
 
 type Duplicates struct {
@@ -30,16 +28,16 @@ type Duplicates struct {
 	Similar  []int64 // Similar similar pics
 }
 
-func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []string, createdAt time.Time) (int64, *Duplicates, error) {
+func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []string, createdAt time.Time) (int64, error) {
 	files := make([]tgbotapi.File, 0, len(media))
 	urls := make([]string, len(media))
-	var filenameToFileData sync.Map
+	var filenameToFileID sync.Map
 	wg := sync.WaitGroup{}
 
 	for _, m := range media {
 		f, err := b.api.GetFile(tgbotapi.FileConfig{FileID: m})
 		if err != nil {
-			return 0, nil, errors.Wrap(err, "can't get file from telegram")
+			return 0, errors.Wrap(err, "can't get file from telegram")
 		}
 		files = append(files, f)
 	}
@@ -71,10 +69,7 @@ func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []str
 				return
 			}
 
-			filenameToFileData.Store(uploadResp.GetURL(), fileData{
-				FileID: fileID,
-				SHA:    hex.EncodeToString(sha.Sum(nil)[:20]),
-			})
+			filenameToFileID.Store(uploadResp.GetURL(), fileID)
 			wg.Done()
 		}(i)
 	}
@@ -83,13 +78,12 @@ func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []str
 
 	postMedia := make([]*memezis.Media, 0, len(media))
 	for _, u := range urls {
-		d, _ := filenameToFileData.Load(u)
-		data := d.(fileData)
+		d, _ := filenameToFileID.Load(u)
+		fileID := d.(string)
 		postMedia = append(postMedia, &memezis.Media{
 			URL:      u,
 			Type:     "photo",
-			SourceID: data.FileID,
-			SHA1:     data.SHA,
+			SourceID: fileID,
 		})
 	}
 
@@ -100,10 +94,10 @@ func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []str
 		CreatedAt: toProtoTime(time.Now().UTC()),
 	})
 	if err != nil {
-		return 0, nil, errors.Wrap(err, "can't add post")
+		return 0, errors.Wrap(err, "can't add post")
 	}
 
-	return addResp.GetID(), fromProtoDuplicates(addResp.GetDuplicates()), nil
+	return addResp.GetID(), nil
 }
 
 func (b MemezisBot) upload(ctx context.Context, image []byte, filename string) (*memezis.UploadMediaResponse, error) {
@@ -317,13 +311,8 @@ func fromProtoDuplicates(duplicates *memezis.Duplicates) *Duplicates {
 	for _, d := range duplicates.Likely {
 		l = append(l, d)
 	}
-	s := make([]int64, len(duplicates.Similar))
-	for _, d := range duplicates.Similar {
-		s = append(s, d)
-	}
 	return &Duplicates{
 		Complete: c,
 		Likely:   l,
-		Similar:  s,
 	}
 }

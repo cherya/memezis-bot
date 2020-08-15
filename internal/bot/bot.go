@@ -260,7 +260,6 @@ func (b *MemezisBot) Stop() {
 
 func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgbotapi.Message) error {
 	var postID int64
-	var duplicates *Duplicates
 	var err error
 	var reservMsg tgbotapi.Message
 
@@ -285,17 +284,13 @@ func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgb
 		m.ReplyToMessageID = msg.MessageID
 		reservMsg, err = b.send(m)
 
-		postID, duplicates, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
+		postID, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
 		if err != nil {
 			return errors.Wrap(err, "handleDirectSuggestionMessage: can't save post")
 		}
-		if hasDuplicates(duplicates) {
-			m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
-			m.ReplyToMessageID = msg.MessageID
-			_, err := b.send(m)
-			if err != nil {
-				return errors.Wrap(err, "handleDirectSuggestionMessage: can't send message")
-			}
+		err = b.processDuplicates(ctx, postID, msg.MessageID)
+		if err != nil {
+			log.Errorf("error processing duplicates %s", err)
 		}
 	} else if msg.Animation != nil {
 		m := tgbotapi.NewMessage(b.suggestionChannel, "секундочку...")
@@ -327,7 +322,6 @@ func (b *MemezisBot) handleDirectSuggestionMessage(ctx context.Context, msg *tgb
 
 func (b *MemezisBot) handleChatMessage(ctx context.Context, msg *tgbotapi.Message) error {
 	var postID int64
-	var duplicates *Duplicates
 	var err error
 
 	sender := getUsername(msg)
@@ -346,7 +340,7 @@ func (b *MemezisBot) handleChatMessage(ctx context.Context, msg *tgbotapi.Messag
 		m.ReplyToMessageID = msg.MessageID
 		_, err = b.send(m)
 
-		postID, duplicates, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
+		postID, err = b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
 		if err != nil {
 			return errors.Wrap(err, "handleChatMessage: can't save post")
 		}
@@ -371,13 +365,9 @@ func (b *MemezisBot) handleChatMessage(ctx context.Context, msg *tgbotapi.Messag
 	}
 
 	votingMsgID, err := b.publishPostVotingByID(ctx, postID, sender)
-	if hasDuplicates(duplicates) {
-		m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
-		m.ReplyToMessageID = votingMsgID
-		_, err := b.send(m)
-		if err != nil {
-			return errors.Wrap(err, "handleChatMessage: can't send message")
-		}
+	err = b.processDuplicates(ctx, postID, votingMsgID)
+	if err != nil {
+		log.Errorf("error processing duplicates %s", err)
 	}
 
 	if err != nil {
@@ -407,21 +397,17 @@ func (b *MemezisBot) handlePrivateMessage(ctx context.Context, msg *tgbotapi.Mes
 	}
 
 	if msg.Photo != nil {
-		postID, duplicates, err := b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
+		postID, err := b.savePhotoPost(ctx, text, []string{getFileIDFromMsg(msg)}, msg.Time())
 		if err != nil {
 			return errors.Wrap(err, "handlePrivateMessage: can't save post")
 		}
-		msgID, err := b.publishPostVotingByID(ctx, postID, getUsername(msg))
+		votingMsgID, err := b.publishPostVotingByID(ctx, postID, getUsername(msg))
 		if err != nil {
 			return errors.Wrap(err, "handlePrivateMessage: can't publish post voting")
 		}
-		if hasDuplicates(duplicates) {
-			m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
-			m.ReplyToMessageID = msgID
-			_, err := b.send(m)
-			if err != nil {
-				return errors.Wrap(err, "handlePrivateMessage: can't send message")
-			}
+		err = b.processDuplicates(ctx, postID, votingMsgID)
+		if err != nil {
+			log.Errorf("error processing duplicates %s", err)
 		}
 	} else if msg.Animation != nil {
 		postID, err := b.saveExternalPost(ctx, text, getFileIDFromMsg(msg), "gif")
@@ -490,7 +476,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 	case PERMABAN:
 		err := b.banHammer.Permaban(toBan)
 		if err != nil {
-			log.Errorf("can't permaban %s. error: %s", toBan, err)
+			log.Errorf("can't ban %s. error: %s", toBan, err)
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
 		}
 		m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("совсем забанен"))
@@ -508,7 +494,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так: %s", err))
 			_, err := b.send(m)
 			if err != nil {
-				log.Errorf("can't ansewer to comand: %s", err)
+				log.Errorf("can't answer to command: %s", err)
 			}
 			return
 		}
@@ -528,7 +514,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 			m := tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так"))
 			_, err := b.send(m)
 			if err != nil {
-				log.Errorf("can't ansewer to comand: %s", err)
+				log.Errorf("can't answer to command: %s", err)
 			}
 			return
 		}
@@ -539,7 +525,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 			m = tgbotapi.NewMessage(msg.Chat.ID, fmt.Sprintf("что то пошло не так"))
 			_, err := b.send(m)
 			if err != nil {
-				log.Errorf("can't ansewer to comand: %s", err)
+				log.Errorf("can't answer to command: %s", err)
 			}
 			return
 		}
@@ -550,7 +536,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 		p.Caption = post.Text
 		_, err = b.send(p)
 		if err != nil {
-			log.Errorf("can't ansewer to comand: %s", err)
+			log.Errorf("can't answer to command: %s", err)
 		}
 	}
 
@@ -559,7 +545,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 		m.ParseMode = tgbotapi.ModeMarkdown
 		_, err := b.send(m)
 		if err != nil {
-			log.Errorf("can't ansewer to comand: %s", err)
+			log.Errorf("can't answer to command: %s", err)
 		}
 	}
 }
@@ -587,4 +573,21 @@ func (b *MemezisBot) isBanned(message *tgbotapi.Message) bool {
 		return false
 	}
 	return isBannedID || isBannedUsername
+}
+
+func (b *MemezisBot) processDuplicates(ctx context.Context, postID int64, replyMsgID int) error {
+	duplicates, err := b.mc.FindDuplicatesByPostID(ctx, &memezis.FindDuplicatesByPostIDRequest{Id: postID})
+	if err != nil {
+		log.Errorf("can't get duplicates for post %d, %s", postID, err)
+	}
+	if hasDuplicates(duplicates) {
+		m := tgbotapi.NewMessage(b.suggestionChannel, getDuplicatesText(duplicates))
+		m.ReplyToMessageID = replyMsgID
+		_, err := b.send(m)
+		if err != nil {
+			return errors.Wrap(err, "processDuplicates: can't send message")
+		}
+	}
+
+	return nil
 }

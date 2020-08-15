@@ -1,7 +1,10 @@
 package bot
 
 import (
+	"fmt"
+	"github.com/cherya/memezis/pkg/memezis"
 	"math/rand"
+	"strings"
 )
 
 var (
@@ -47,12 +50,33 @@ func randomText(t []string) string {
 	return t[rand.Intn(len(t))]
 }
 
-func getDuplicatesText(d *Duplicates) string {
+func getDuplicatesLinks(posts []*memezis.Post) []string {
+	var links []string
+	for _, c := range posts {
+		if c.SourceURL != "" {
+			links = append(links, c.SourceURL)
+		} else {
+			for _, p := range c.Publish {
+				links = append(links, p.URL)
+			}
+		}
+	}
+	return links
+}
+
+func getDuplicatesText(d *memezis.FindDuplicatesByPostIDResponse) string {
+	msg := strings.Builder{}
+	dupls := d.Likely
 	if len(d.Complete) > 0 {
-		return randomText(completeDuplicateTexts)
+		dupls = d.Complete
 	}
-	if len(d.Likely) > 0 {
-		return randomText(likelyDuplicateTexts)
+	links := getDuplicatesLinks(dupls)
+	msg.Write([]byte(randomText(likelyDuplicateTexts)))
+	if len(links) != 0 {
+		msg.Write([]byte("\nсурс:\n"))
+		for _, l := range links {
+			msg.Write([]byte(fmt.Sprintf("\n%s", l)))
+		}
 	}
-	return ""
+	return msg.String()
 }

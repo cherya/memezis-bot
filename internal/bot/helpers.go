@@ -2,6 +2,7 @@ package bot
 
 import (
 	"fmt"
+	"github.com/cherya/memezis/pkg/memezis"
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -42,7 +43,7 @@ func toProtoTime(time time.Time) *types.Timestamp {
 	return t
 }
 
-func hasDuplicates(d *Duplicates) bool {
+func hasDuplicates(d *memezis.FindDuplicatesByPostIDResponse) bool {
 	if d == nil {
 		return false
 	}
