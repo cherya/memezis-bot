@@ -3,11 +3,12 @@ package bot
 import (
 	"context"
 	"fmt"
-	"github.com/golang/protobuf/ptypes/empty"
 	"net/http"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/golang/protobuf/ptypes/empty"
 
 	"github.com/cherya/memezis-bot/internal/dailyword"
 	log "github.com/sirupsen/logrus"
@@ -533,7 +534,7 @@ func (b *MemezisBot) handleCommand(msg *tgbotapi.Message) {
 		p := tgbotapi.NewPhotoUpload(msg.Chat.ID, nil)
 		p.FileID = post.Media[0].URL
 		p.UseExisting = true
-		p.Caption = post.Text
+		p.Caption = post.Text + "\n@shaurmemes"
 		_, err = b.send(p)
 		if err != nil {
 			log.Errorf("can't answer to command: %s", err)
