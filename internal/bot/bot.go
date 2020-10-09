@@ -217,9 +217,11 @@ func (b *MemezisBot) Start() error {
 		case update := <-updates:
 			if update.Message != nil {
 				if b.isBanned(update.Message) {
-					_, err := b.send(tgbotapi.NewMessage(update.Message.Chat.ID, banText))
-					if err != nil {
-						fmt.Println(errors.Wrap(err, "can't send ban msg"))
+					if update.Message.Chat.IsPrivate() {
+						_, err := b.send(tgbotapi.NewMessage(update.Message.Chat.ID, banText))
+						if err != nil {
+							fmt.Println(errors.Wrap(err, "can't send ban msg"))
+						}
 					}
 					continue
 				}
