@@ -28,7 +28,7 @@ func (b *MemezisBot) messageWorker(ctx context.Context, id int, message *tgbotap
 		if text == "" {
 			text = message.Caption
 		}
-		if mentionUser(message, b.api.Self) {
+		if !mentionUser(message, b.api.Self) {
 			return nil
 		}
 		err := b.handleAdminChannelMessage(ctx, message)
@@ -41,7 +41,7 @@ func (b *MemezisBot) messageWorker(ctx context.Context, id int, message *tgbotap
 		err := b.handlePrivateMessage(ctx, message)
 		return errors.Wrap(err, "messageWorker: error handling message")
 	} else {
-		if mentionUser(message, b.api.Self) {
+		if !mentionUser(message, b.api.Self) {
 			return nil
 		}
 		err := b.handleChatMessage(ctx, message)

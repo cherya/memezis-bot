@@ -11,7 +11,10 @@ import (
 )
 
 func (b *MemezisBot) processDuplicates(ctx context.Context, postID int64, replyMsgID int) error {
-	duplicates, err := b.mc.FindDuplicatesByPostID(ctx, &memezis.FindDuplicatesByPostIDRequest{Id: postID})
+	duplicates, err := b.mc.FindDuplicatesByPostID(ctx, &memezis.FindDuplicatesByPostIDRequest{
+		Id:                   postID,
+		Limit:                5,
+	})
 	if err != nil {
 		log.Errorf("can't get duplicates for post %d, %s", postID, err)
 	}

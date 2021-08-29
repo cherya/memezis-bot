@@ -7,6 +7,7 @@ import (
 	"github.com/cherya/memezis/pkg/memezis"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
+	log "github.com/sirupsen/logrus"
 )
 
 const (
@@ -41,6 +42,10 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		if err != nil {
 			return errors.Wrap(err, "callbackQuery: error voting post")
 		}
+		if !resp.Accepted {
+			_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeOwnPostVote)))
+			return nil
+		}
 
 		var markupUpdate tgbotapi.EditMessageReplyMarkupConfig
 
@@ -51,11 +56,11 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		default:
 			// checking is vote changed
 			if data.ActionType == callbackActionTypeUpVote && data.UpVotes == resp.Up {
-				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
+				_, _ = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
 				return nil
 			}
 			if data.ActionType == callbackActionTypeDownVote && data.DownVotes == resp.Down {
-				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
+				_, _ = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
 				return nil
 			}
 			markupUpdate = tgbotapi.NewEditMessageReplyMarkup(
@@ -72,11 +77,41 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 	//button "scheduled"
 	case callbackActionTypeScheduled:
 		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeQueued)))
-		return errors.Wrap(err, "callbackQuery: can't answer to callback")
+		return errors.Wrap(err, "callbackQuery: can't answer to scheduled callback")
 	// button "decline"
 	case callbackActionTypeDeclined:
 		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeDeclined)))
-		return errors.Wrap(err, "callbackQuery: can't answer to callback")
+		return errors.Wrap(err, "callbackQuery: can't answer to declined callback")
+	case callbackActionTypeConfirmUpload:
+		postID, err := b.uploadNewPost(ctx, callback.Message, callback.From)
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't answer to confirm callback")
+		}
+		err = b.uc.Set(postID, getUserFullName(callback.From), callback.From.ID)
+		if err != nil {
+			log.Error(errors.Wrap(err, "callbackQuery: can't save user to cache"))
+		}
+		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(false))
+		_, err = b.send(markupUpdate)
+		return errors.Wrap(err, "callbackQuery: can't update confirmed markup")
+	case callbackActionTypeConfirmUploadAnon:
+		_, err = b.uploadNewPost(ctx, callback.Message, callback.From)
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't answer to confirm callback")
+		}
+		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(true))
+		_, err = b.send(markupUpdate)
+		return errors.Wrap(err, "callbackQuery: can't update confirmed anon markup")
+	case callbackActionTypeDeclineUpload:
+		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createDeclinedPostKeyboard())
+		_, err = b.send(markupUpdate)
+		return errors.Wrap(err, "callbackQuery: can't update declined markup")
+	case callbackActionTypeRemoveCaption:
+		editMessage := tgbotapi.NewEditMessageCaption(callback.Message.Chat.ID, callback.Message.MessageID, "")
+		keyboard := createConfirmationKeyboard("")
+		editMessage.ReplyMarkup = &keyboard
+		_, err = b.send(editMessage)
+		return errors.Wrap(err, "callbackQuery: can't remove caption")
 	}
 
 	return nil

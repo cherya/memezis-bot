@@ -2,10 +2,10 @@ package bot
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/cherya/memezis/pkg/memezis"
-
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gogo/protobuf/types"
 )
@@ -34,6 +34,14 @@ func getUsername(msg *tgbotapi.Message) string {
 	return fmt.Sprintf("[%s](tg://user?id=%d)", msg.From.String(), msg.From.ID)
 }
 
+func getUserFullName(u *tgbotapi.User) string {
+	name := u.FirstName
+	if u.LastName != "" {
+		name += " " + u.LastName
+	}
+	return name
+}
+
 func fromProtoTime(timestamp *types.Timestamp) time.Time {
 	t, _ := types.TimestampFromProto(timestamp)
 	return t
@@ -45,10 +53,7 @@ func toProtoTime(time time.Time) *types.Timestamp {
 }
 
 func hasDuplicates(d *memezis.FindDuplicatesByPostIDResponse) bool {
-	if d == nil {
-		return false
-	}
-	return len(d.Complete) > 0 || len(d.Likely) > 0
+	return len(d.GetDuplicate()) > 0
 }
 
 func userFromUpdate(u interface{}) int {
@@ -67,10 +72,8 @@ func userFromUpdate(u interface{}) int {
 }
 
 func mentionUser(msg *tgbotapi.Message, user tgbotapi.User) bool {
-	for _, m := range append(msg.Entities, msg.CaptionEntities...) {
-		if m.User.ID == user.ID {
-			return true
-		}
+	if strings.Contains(msg.Text, "@"+user.UserName) {
+		return true
 	}
 	return false
 }

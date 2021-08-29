@@ -32,7 +32,7 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 		log.Error(errors.Wrapf(err, "invalid postID: %s", value))
 		return
 	}
-	resp, err := b.mc.GetPostByID(context.Background(), &memezis.GetPostByIDRequest{
+	post, err := b.mc.GetPostByID(context.Background(), &memezis.GetPostByIDRequest{
 		PostID: postID,
 	})
 	if err != nil {
@@ -40,10 +40,10 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 		return
 	}
 
-	if len(resp.Media) > 1 {
-		if resp.Source == SourceMemezisBot {
-			media := make([]interface{}, 0, len(resp.Media))
-			for i, m := range resp.Media {
+	if len(post.Media) > 1 {
+		if post.Source == SourceMemezisBot {
+			media := make([]interface{}, 0, len(post.Media))
+			for i, m := range post.Media {
 				var imp tgbotapi.InputMediaPhoto
 				if m.SourceID != "" {
 					imp = tgbotapi.NewInputMediaPhoto(m.SourceID)
@@ -54,7 +54,7 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 					return
 				}
 				if i == 0 {
-					imp.Caption = resp.Text
+					imp.Caption = post.Text
 				}
 				media = append(media, imp)
 			}
@@ -81,13 +81,13 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 		return
 	}
 
-	if len(resp.Media) == 1 {
-		media := resp.Media[0]
+	if len(post.Media) == 1 {
+		media := post.Media[0]
 		if media.Type == "photo" {
 			msg := tgbotapi.NewPhotoUpload(b.publicationChannel, nil)
 			msg.FileID = media.URL
 			msg.UseExisting = true
-			msg.Caption = resp.Text
+			msg.Caption = b.captionForPublish(post.Text, post)
 			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish proto"))
@@ -97,7 +97,7 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 			publishedAt = time.Unix(int64(resp.Date), 0)
 		} else if media.Type == "gif" {
 			msg := tgbotapi.NewAnimationShare(b.publicationChannel, media.SourceID)
-			msg.Caption = resp.Text
+			msg.Caption = b.captionForPublish(post.Text, post)
 			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish gif"))
@@ -107,7 +107,7 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 			publishedAt = time.Unix(int64(resp.Date), 0)
 		} else if media.Type == "video" {
 			msg := tgbotapi.NewVideoShare(b.publicationChannel, media.SourceID)
-			msg.Caption = resp.Text
+			msg.Caption = b.captionForPublish(post.Text, post)
 			resp, err := b.send(msg)
 			if err != nil {
 				log.Error(errors.Wrap(err, "can't publish video"))
@@ -133,4 +133,23 @@ func (b *MemezisBot) ShaurmemesConsumer(value string) {
 	}
 
 	return
+}
+
+func (b *MemezisBot) getPostSenderName(postID int64) string {
+	if name, err := b.uc.GetName(postID); err == nil {
+		return name
+	}
+	return ""
+}
+
+func (b *MemezisBot) captionForPublish(text string, post *memezis.Post) string {
+	senderID, err := strconv.Atoi(post.AddedBy)
+	if err != nil || b.isAdmin(senderID) {
+		return text
+	}
+	name := b.getPostSenderName(post.ID)
+	if name != "" {
+		return fmt.Sprintf("%s\n\nПрислал %s через @%s", text, name, b.api.Self.UserName)
+	}
+	return fmt.Sprintf("%s\n\nПрислал анонимус через @%s", text, b.api.Self.UserName)
 }

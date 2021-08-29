@@ -19,6 +19,7 @@ const (
 	TextTypeVotedAlready textType = "voted_already"
 	TextTypeQueued       textType = "queued"
 	TextTypeDeclined     textType = "declined"
+	TextTypeOwnPostVote  textType = "own_post_vote"
 )
 
 var texts = map[textType][]string{
@@ -30,10 +31,10 @@ var texts = map[textType][]string{
 	TextTypeVotedAlready: {"ну ты дурак?", "че ты жмешь?", "да уже", "???", "#$%&@??"},
 	TextTypeQueued:       {"уже в очереди"},
 	TextTypeDeclined:     {"уже выкинул"},
+	TextTypeOwnPostVote:  {"не считается", "неа", "хватит дрочить"},
 }
 var (
-	completeDuplicateTexts = []string{"сто процентов абсолютно точно боян", "БОЯН!!!", "Дед, таблетки"}
-	likelyDuplicateTexts   = []string{"скорее всего это уже было"}
+	likelyDuplicateTexts = []string{"скорее всего это уже было"}
 )
 
 func getText(tt textType) string {
@@ -44,17 +45,18 @@ func randomText(t []string) string {
 	return t[rand.Intn(len(t))]
 }
 
-func getDuplicatesLinks(posts []*memezis.Post) []string {
+func getDuplicatesLinks(duplicates []*memezis.PostDuplicate) []string {
 	var links []string
-	for _, c := range posts {
-		if c.SourceURL != "" {
-			if c.Source != "" {
-				links = append(links, fmt.Sprintf("[%s](%s)", c.Source, c.SourceURL))
+	for _, c := range duplicates {
+		post := c.GetPost()
+		if post.GetSourceURL() != "" {
+			if post.GetSource() != "" {
+				links = append(links, fmt.Sprintf("[%s](%s)", post.GetSource(), post.GetSource()))
 			} else {
-				links = append(links, c.SourceURL)
+				links = append(links, post.GetSourceURL())
 			}
 		} else {
-			for _, p := range c.Publish {
+			for _, p := range post.GetPublish() {
 				links = append(links, p.URL)
 			}
 		}
@@ -64,10 +66,7 @@ func getDuplicatesLinks(posts []*memezis.Post) []string {
 
 func getDuplicatesText(d *memezis.FindDuplicatesByPostIDResponse) string {
 	msg := strings.Builder{}
-	dupls := d.Likely
-	if len(d.Complete) > 0 {
-		dupls = d.Complete
-	}
+	dupls := d.GetDuplicate()
 	links := getDuplicatesLinks(dupls)
 	msg.Write([]byte(randomText(likelyDuplicateTexts)))
 	if len(links) != 0 {

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"flag"
+	"github.com/cherya/memezis-bot/internal/userchache"
 
 	"github.com/cherya/memezis-bot/internal/banhammer"
 	"github.com/cherya/memezis-bot/internal/bot"
@@ -63,6 +64,7 @@ func main() {
 		memezisClient,
 		dailyword.NewWordGenerator(redisPool),
 		banhammer.NewBanHammer(redisPool, 300),
+		userchache.NewUserCache(redisPool),
 		config.GetInt64(config.PublicationChannelId),
 		config.GetInt64(config.SuggestionChannelId),
 		config.GetInt(config.OwnerID),

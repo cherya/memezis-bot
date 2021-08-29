@@ -10,11 +10,16 @@ import (
 type callbackActionType int
 
 const (
-	callbackActionTypeVote      = 1
-	callbackActionTypeScheduled = 2
-	callbackActionTypeDeclined  = 3
-	callbackActionTypeUpVote    = 4
-	callbackActionTypeDownVote  = 5
+	callbackActionTypeVote = iota
+	callbackActionTypeScheduled
+	callbackActionTypeDeclined
+	callbackActionTypeUpVote
+	callbackActionTypeDownVote
+	callbackActionTypeConfirmUpload
+	callbackActionTypeConfirmUploadAnon
+	callbackActionTypeDeclineUpload
+	callbackActionTypeRemoveCaption
+	callbackActionTypeOther
 )
 
 type ButtonData struct {
@@ -60,6 +65,45 @@ func createVoteEndKeyboard(postID, up, down int64) tgbotapi.InlineKeyboardMarkup
 	return tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData(text, data.String()),
+		),
+	)
+}
+
+func createConfirmationKeyboard(text string) tgbotapi.InlineKeyboardMarkup {
+	kb := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🟢 отправить", ButtonData{ActionType: callbackActionTypeConfirmUpload}.String()),
+			tgbotapi.NewInlineKeyboardButtonData("😷 анонимно", ButtonData{ActionType: callbackActionTypeConfirmUploadAnon}.String()),
+			tgbotapi.NewInlineKeyboardButtonData("❌ отмена", ButtonData{ActionType: callbackActionTypeDeclineUpload}.String()),
+		),
+	)
+	if text != "" {
+		kb.InlineKeyboard = append(kb.InlineKeyboard, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("✏️ убрать текст", ButtonData{ActionType: callbackActionTypeRemoveCaption}.String()),
+		))
+	}
+	return kb
+}
+
+func createConfirmedPostKeyboard(anon bool) tgbotapi.InlineKeyboardMarkup {
+	if anon {
+		return tgbotapi.NewInlineKeyboardMarkup(
+			tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData("🟢😷 принято анонимно", ButtonData{ActionType: callbackActionTypeOther}.String()),
+			),
+		)
+	}
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🟢 принято", ButtonData{ActionType: callbackActionTypeOther}.String()),
+		),
+	)
+}
+
+func createDeclinedPostKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("🔴 отменено", ButtonData{ActionType: callbackActionTypeOther}.String()),
 		),
 	)
 }

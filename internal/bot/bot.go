@@ -23,6 +23,8 @@ type MemezisBot struct {
 	adminChannel       int64
 	ownerID            int
 	banHammer          Ban
+	uc                 UserCache
+	admins             []tgbotapi.ChatMember
 	limiter            <-chan time.Time
 }
 
@@ -33,12 +35,18 @@ type Ban interface {
 	IsBanned(u string) (bool, error)
 }
 
+type UserCache interface {
+	Set(postId int64, name string, id int) error
+	GetName(postId int64) (string, error)
+	GetID(postId int64) (string, error)
+}
+
 const (
 	messageWorkersAmount  = 5
 	callbackWorkersAmount = 5
 )
 
-func NewBot(api *tgbotapi.BotAPI, queue *queue.Manager, mc memezis.MemezisClient, wg *dailyword.WordGenerator, ban Ban, pubChan, sugChan int64, ownerID int) (*MemezisBot, error) {
+func NewBot(api *tgbotapi.BotAPI, queue *queue.Manager, mc memezis.MemezisClient, wg *dailyword.WordGenerator, ban Ban, uc UserCache, pubChan, sugChan int64, ownerID int) (*MemezisBot, error) {
 	pb := &MemezisBot{
 		api:                api,
 		mc:                 mc,
@@ -48,8 +56,20 @@ func NewBot(api *tgbotapi.BotAPI, queue *queue.Manager, mc memezis.MemezisClient
 		adminChannel:       sugChan,
 		ownerID:            ownerID,
 		banHammer:          ban,
+		uc:                 uc,
 		limiter:            time.Tick(3 * time.Second),
 	}
+
+	admins, err := api.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
+		ChatConfig: tgbotapi.ChatConfig{
+			ChatID: sugChan,
+		},
+	})
+	if err != nil {
+		return nil, errors.Wrap(err, "NewBot: can't get channel admins")
+	}
+
+	pb.admins = admins
 
 	pb.qm.Consume(context.Background(), ShaurmemesQueue, time.Second*10, pb.ShaurmemesConsumer)
 
@@ -91,6 +111,7 @@ func (b *MemezisBot) Start() error {
 		case err := <-errs:
 			fmt.Println("update error:", err)
 		case update := <-updates:
+			log.Debug(fmt.Sprintf("%v", update))
 			if update.Message != nil {
 				if b.isBanned(update.Message) {
 					if update.Message.Chat.IsPrivate() {
@@ -120,4 +141,13 @@ func (b *MemezisBot) send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
 		<-b.limiter
 	}
 	return b.api.Send(c)
+}
+
+func (b *MemezisBot) isAdmin(userID int) bool {
+	for _, a := range b.admins {
+		if a.User.ID == userID {
+			return true
+		}
+	}
+	return false
 }
