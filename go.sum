@@ -28,6 +28,8 @@ github.com/cherya/memezis/pkg/memezis v0.0.0-20210829163917-a0a89ff62f5f h1:xSUc
 github.com/cherya/memezis/pkg/memezis v0.0.0-20210829163917-a0a89ff62f5f/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
 github.com/cherya/memezis/pkg/memezis v0.0.0-20210829173515-e462f867f340 h1:6vbFzfunNLRwjtocoUqaNJCC+iQekwSjguI47f1shpI=
 github.com/cherya/memezis/pkg/memezis v0.0.0-20210829173515-e462f867f340/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20210829192209-72ed56dd13e6 h1:hYWmngK6B89Y9P8PdHpatqE6j/W6ddkQ+hC5Itu7Tyk=
+github.com/cherya/memezis/pkg/memezis v0.0.0-20210829192209-72ed56dd13e6/go.mod h1:iXjBYTO3fDtsLkRSHYwPBttHZqkD6Ne52DLRx6PCtjo=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200524090745-0762110260e4 h1:J/3CGjt/2A23U3caSEy8S4HeT/1J/5ZKKz9tG2lcpbg=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200524090745-0762110260e4/go.mod h1:4VuI6ZJJZhx7O9VMtllkJ8ZXxtSewYPrwQ5iDOrqc8U=
 github.com/cherya/memezis/pkg/queue v0.0.0-20200701120229-8fe2fc4cde54 h1:lGK0SAn820DbvOIfNOkcDPXXp4EX4PINSeE4DdD5EY4=
