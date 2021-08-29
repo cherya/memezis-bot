@@ -3,15 +3,16 @@ package main
 import (
 	"context"
 	"flag"
-	"github.com/cherya/memezis-bot/internal/dailyword"
 
 	"github.com/cherya/memezis-bot/internal/banhammer"
 	"github.com/cherya/memezis-bot/internal/bot"
 	"github.com/cherya/memezis-bot/internal/config"
+	"github.com/cherya/memezis-bot/internal/dailyword"
 	"github.com/cherya/memezis-bot/internal/logger"
 
 	"github.com/cherya/memezis/pkg/memezis"
 	"github.com/cherya/memezis/pkg/queue"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gomodule/redigo/redis"
 	"github.com/joho/godotenv"
 	log "github.com/sirupsen/logrus"
@@ -51,8 +52,13 @@ func main() {
 
 	memezisClient := memezis.NewMemezisClient(memezisConn)
 
+	tgapi, err := tgbotapi.NewBotAPI(config.GetValue(config.TgBotToken))
+	if err != nil {
+		log.Fatalf("Bot creation error", err)
+	}
+
 	bbot, err := bot.NewBot(
-		config.GetValue(config.TgBotToken),
+		tgapi,
 		queue.NewManager(redisPool, "memezis"),
 		memezisClient,
 		dailyword.NewWordGenerator(redisPool),

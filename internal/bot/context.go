@@ -1,6 +1,9 @@
 package bot
 
-import "context"
+import (
+	"context"
+	"strconv"
+)
 
 type botCtxKey string
 
@@ -13,9 +16,10 @@ var (
 )
 
 func setUserToContext(ctx context.Context, userID int) context.Context {
-	return context.WithValue(ctx, contextKeyUserID, userID)
+	val := strconv.FormatInt(int64(userID), 10)
+	return context.WithValue(ctx, contextKeyUserID, val)
 }
 
-func userFromContext(ctx context.Context) int {
-	return ctx.Value(contextKeyUserID).(int)
+func userIDFromContext(ctx context.Context) string {
+	return ctx.Value(contextKeyUserID).(string)
 }

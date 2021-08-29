@@ -24,10 +24,6 @@ type ButtonData struct {
 	UpVotes    int64              `json:"uv"`
 }
 
-func (b ButtonData) IsUp() bool {
-	return b.ActionType == callbackActionTypeUpVote
-}
-
 func (b ButtonData) String() string {
 	data, _ := json.Marshal(b)
 	return string(data)

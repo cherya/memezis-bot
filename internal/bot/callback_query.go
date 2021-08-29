@@ -3,9 +3,8 @@ package bot
 import (
 	"context"
 	"encoding/json"
-	"github.com/cherya/memezis/pkg/memezis"
-	"strconv"
 
+	"github.com/cherya/memezis/pkg/memezis"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/pkg/errors"
 )
@@ -22,20 +21,20 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		return errors.Wrap(err, "callbackQuery: can't unmarshal button data")
 	}
 
-	userID := userFromContext(ctx)
+	userID := userIDFromContext(ctx)
 
 	switch data.ActionType {
 	// voting buttons
 	case callbackActionTypeUpVote, callbackActionTypeDownVote:
 		var resp *memezis.Vote
-		if data.IsUp() {
+		if data.ActionType == callbackActionTypeUpVote {
 			resp, err = b.mc.UpVote(ctx, &memezis.VoteRequest{
-				UserID: strconv.FormatInt(int64(userID), 10),
+				UserID: userID,
 				PostID: data.PostID,
 			})
 		} else {
 			resp, err = b.mc.DownVote(ctx, &memezis.VoteRequest{
-				UserID: strconv.FormatInt(int64(userID), 10),
+				UserID: userID,
 				PostID: data.PostID,
 			})
 		}
@@ -48,19 +47,19 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		switch resp.Status {
 		case PublishStatusEnqueued, PublishStatusDeclined:
 			markupUpdate = tgbotapi.NewEditMessageReplyMarkup(
-				b.suggestionChannel, callback.Message.MessageID, createVoteEndKeyboard(data.PostID, resp.Up, resp.Down))
+				b.adminChannel, callback.Message.MessageID, createVoteEndKeyboard(data.PostID, resp.Up, resp.Down))
 		default:
 			// checking is vote changed
 			if data.ActionType == callbackActionTypeUpVote && data.UpVotes == resp.Up {
-				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getAlreadyVotedCallbackTexts()))
+				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
 				return nil
 			}
 			if data.ActionType == callbackActionTypeDownVote && data.DownVotes == resp.Down {
-				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getAlreadyVotedCallbackTexts()))
+				_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVotedAlready)))
 				return nil
 			}
 			markupUpdate = tgbotapi.NewEditMessageReplyMarkup(
-				b.suggestionChannel, callback.Message.MessageID, createVotingKeyboard(data.PostID, resp.Up, resp.Down))
+				b.adminChannel, callback.Message.MessageID, createVotingKeyboard(data.PostID, resp.Up, resp.Down))
 		}
 
 		_, err = b.send(markupUpdate)
@@ -68,22 +67,16 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 			return errors.Wrap(err, "callbackQuery: error updating markup post")
 		}
 
-		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getVoteCallbackTexts()))
-		if err != nil {
-			return errors.Wrap(err, "callbackQuery: can't answer to callback")
-		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeVoteCallback)))
+		return errors.Wrap(err, "callbackQuery: can't answer to callback")
 	//button "scheduled"
 	case callbackActionTypeScheduled:
-		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, queuedText))
-		if err != nil {
-			return errors.Wrap(err, "callbackQuery: can't answer to callback")
-		}
-	// button "declinec"
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeQueued)))
+		return errors.Wrap(err, "callbackQuery: can't answer to callback")
+	// button "decline"
 	case callbackActionTypeDeclined:
-		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, declinedText))
-		if err != nil {
-			return errors.Wrap(err, "callbackQuery: can't answer to callback")
-		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeDeclined)))
+		return errors.Wrap(err, "callbackQuery: can't answer to callback")
 	}
 
 	return nil

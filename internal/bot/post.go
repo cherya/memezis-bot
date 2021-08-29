@@ -8,7 +8,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
-	"strconv"
 	"sync"
 	"time"
 
@@ -89,7 +88,7 @@ func (b *MemezisBot) savePhotoPost(ctx context.Context, text string, media []str
 
 	addResp, err := b.mc.AddPost(ctx, &memezis.AddPostRequest{
 		Media:     postMedia,
-		AddedBy:   strconv.Itoa(userFromContext(ctx)),
+		AddedBy:   userIDFromContext(ctx),
 		Text:      text,
 		CreatedAt: toProtoTime(time.Now().UTC()),
 	})
@@ -159,7 +158,7 @@ func (b *MemezisBot) saveExternalPost(ctx context.Context, text, sourceID, typ s
 
 	addResp, err := b.mc.AddPost(ctx, &memezis.AddPostRequest{
 		Media:     postMedia,
-		AddedBy:   strconv.Itoa(userFromContext(ctx)),
+		AddedBy:   userIDFromContext(ctx),
 		Text:      text,
 		CreatedAt: toProtoTime(time.Now().UTC()),
 	})
@@ -186,7 +185,7 @@ func (b *MemezisBot) sendMediaGroupPostVoting(post *memezis.Post, sender string)
 		}
 		media = append(media, imp)
 	}
-	msg := tgbotapi.NewMediaGroup(b.suggestionChannel, media)
+	msg := tgbotapi.NewMediaGroup(b.adminChannel, media)
 	msg.DisableNotification = true
 	apiResp, err := b.api.Request(msg)
 	if err != nil {
@@ -199,7 +198,7 @@ func (b *MemezisBot) sendMediaGroupPostVoting(post *memezis.Post, sender string)
 		return 0, errors.Wrap(err, "can't unmarshal telegram media group response")
 	}
 
-	keysMsg := tgbotapi.NewMessage(b.suggestionChannel, getVotingText())
+	keysMsg := tgbotapi.NewMessage(b.adminChannel, getText(TextTypeVoting))
 	voteKb := createVotingKeyboard(post.GetID(), post.GetVotes().GetUp(), post.GetVotes().GetDown())
 	keysMsg.ReplyMarkup = voteKb
 	keysMsg.ReplyToMessageID = sentMessages[0].MessageID
@@ -227,7 +226,7 @@ func (b *MemezisBot) publishPostVotingByID(ctx context.Context, postID int64, se
 	if len(resp.Media) == 1 {
 		media := resp.Media[0]
 		if media.Type == "photo" {
-			msg := tgbotapi.NewPhotoShare(b.suggestionChannel, media.SourceID)
+			msg := tgbotapi.NewPhotoShare(b.adminChannel, media.SourceID)
 			msg.Caption = textWithSender(resp.Text, sender)
 			msg.DisableNotification = true
 			voteKb := createVotingKeyboard(resp.ID, resp.Votes.Up, resp.Votes.Down)
@@ -239,7 +238,7 @@ func (b *MemezisBot) publishPostVotingByID(ctx context.Context, postID int64, se
 			return m.MessageID, nil
 		}
 		if media.Type == "gif" {
-			msg := tgbotapi.NewAnimationShare(b.suggestionChannel, media.SourceID)
+			msg := tgbotapi.NewAnimationShare(b.adminChannel, media.SourceID)
 			msg.Caption = textWithSender(resp.Text, sender)
 			voteKb := createVotingKeyboard(resp.ID, resp.Votes.Up, resp.Votes.Down)
 			msg.ReplyMarkup = voteKb
@@ -251,7 +250,7 @@ func (b *MemezisBot) publishPostVotingByID(ctx context.Context, postID int64, se
 			return m.MessageID, nil
 		}
 		if media.Type == "video" {
-			msg := tgbotapi.NewVideoShare(b.suggestionChannel, media.SourceID)
+			msg := tgbotapi.NewVideoShare(b.adminChannel, media.SourceID)
 			msg.Caption = textWithSender(resp.Text, sender)
 			voteKb := createVotingKeyboard(resp.ID, resp.Votes.Up, resp.Votes.Down)
 			msg.ReplyMarkup = voteKb
@@ -282,7 +281,7 @@ func (b *MemezisBot) publishInternalPostVotingByID(ctx context.Context, postID i
 	}
 
 	if len(resp.Media) == 1 {
-		edited := tgbotapi.NewEditMessageText(b.suggestionChannel, reservID, getVotingText())
+		edited := tgbotapi.NewEditMessageText(b.adminChannel, reservID, getText(TextTypeVoting))
 		voteKb := createVotingKeyboard(postID, resp.Votes.Up, resp.Votes.Down)
 		edited.ReplyMarkup = &voteKb
 		m, err := b.send(edited)

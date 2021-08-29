@@ -2,8 +2,9 @@ package bot
 
 import (
 	"fmt"
-	"github.com/cherya/memezis/pkg/memezis"
 	"time"
+
+	"github.com/cherya/memezis/pkg/memezis"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/gogo/protobuf/types"
@@ -48,4 +49,28 @@ func hasDuplicates(d *memezis.FindDuplicatesByPostIDResponse) bool {
 		return false
 	}
 	return len(d.Complete) > 0 || len(d.Likely) > 0
+}
+
+func userFromUpdate(u interface{}) int {
+	switch u.(type) {
+	case *tgbotapi.Message:
+		return u.(*tgbotapi.Message).From.ID
+	case *tgbotapi.InlineQuery:
+		return u.(*tgbotapi.InlineQuery).From.ID
+	case *tgbotapi.CallbackQuery:
+		return u.(*tgbotapi.CallbackQuery).From.ID
+	case *tgbotapi.ChosenInlineResult:
+		return u.(*tgbotapi.ChosenInlineResult).From.ID
+	default:
+		return 0
+	}
+}
+
+func mentionUser(msg *tgbotapi.Message, user tgbotapi.User) bool {
+	for _, m := range append(msg.Entities, msg.CaptionEntities...) {
+		if m.User.ID == user.ID {
+			return true
+		}
+	}
+	return false
 }

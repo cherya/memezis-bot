@@ -51,7 +51,7 @@ func (ms *mediaSlice) GetSortedValues() []string {
 
 var mediaGroups sync.Map
 
-// складываем сообщения по MediaGroupID, через 5 секунд забираем все что получилось
+// складываем сообщения по MediaGroupID, через 2 секунд забираем все что получилось
 // 2 секунды – огромный запас, кажется что все сообщения из одной группы приходят моментально
 // в апи нихуя нет, как делать нормально – неизвестно
 func (b *MemezisBot) handleMediaGroup(ctx context.Context, msg *tgbotapi.Message) {
@@ -72,7 +72,7 @@ func (b *MemezisBot) handleMediaGroup(ctx context.Context, msg *tgbotapi.Message
 	if mg, ok := mediaGroups.LoadOrStore(msg.MediaGroupID, ms); !ok {
 		go func(mediaGroupID string) {
 			time.Sleep(2 * time.Second)
-			m := tgbotapi.NewMessage(msg.Chat.ID, getSuccessText())
+			m := tgbotapi.NewMessage(msg.Chat.ID, getText(TextTypeSucessUpload))
 			m.ReplyToMessageID = msg.MessageID
 			_, err := b.send(m)
 			if err != nil {
