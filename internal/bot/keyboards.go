@@ -107,3 +107,11 @@ func createDeclinedPostKeyboard() tgbotapi.InlineKeyboardMarkup {
 		),
 	)
 }
+
+func createLoadingKeyboard() tgbotapi.InlineKeyboardMarkup {
+	return tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(getText(TextTypeLoading), ButtonData{ActionType: callbackActionTypeOther}.String()),
+		),
+	)
+}

@@ -43,7 +43,7 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 			return errors.Wrap(err, "callbackQuery: error voting post")
 		}
 		if !resp.Accepted {
-			_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeOwnPostVote)))
+			_, _ = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeOwnPostVote)))
 			return nil
 		}
 
@@ -83,6 +83,11 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeDeclined)))
 		return errors.Wrap(err, "callbackQuery: can't answer to declined callback")
 	case callbackActionTypeConfirmUpload:
+		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createLoadingKeyboard())
+		_, err = b.send(markupUpdate)
+		if err != nil {
+			log.Error(errors.Wrap(err, "callbackQuery: can't update loadnubg markup"))
+		}
 		postID, err := b.uploadNewPost(ctx, callback.Message, callback.From)
 		if err != nil {
 			return errors.Wrap(err, "callbackQuery: can't answer to confirm callback")
@@ -91,15 +96,20 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		if err != nil {
 			log.Error(errors.Wrap(err, "callbackQuery: can't save user to cache"))
 		}
-		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(false))
+		markupUpdate = tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(false))
 		_, err = b.send(markupUpdate)
 		return errors.Wrap(err, "callbackQuery: can't update confirmed markup")
 	case callbackActionTypeConfirmUploadAnon:
+		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createLoadingKeyboard())
+		_, err = b.send(markupUpdate)
+		if err != nil {
+			log.Error(errors.Wrap(err, "callbackQuery: can't update loadnubg markup"))
+		}
 		_, err = b.uploadNewPost(ctx, callback.Message, callback.From)
 		if err != nil {
 			return errors.Wrap(err, "callbackQuery: can't answer to confirm callback")
 		}
-		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(true))
+		markupUpdate = tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(true))
 		_, err = b.send(markupUpdate)
 		return errors.Wrap(err, "callbackQuery: can't update confirmed anon markup")
 	case callbackActionTypeDeclineUpload:

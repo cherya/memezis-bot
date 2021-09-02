@@ -20,6 +20,7 @@ const (
 	TextTypeQueued       textType = "queued"
 	TextTypeDeclined     textType = "declined"
 	TextTypeOwnPostVote  textType = "own_post_vote"
+	TextTypeLoading      textType = "loading"
 )
 
 var texts = map[textType][]string{
@@ -32,7 +33,9 @@ var texts = map[textType][]string{
 	TextTypeQueued:       {"уже в очереди"},
 	TextTypeDeclined:     {"уже выкинул"},
 	TextTypeOwnPostVote:  {"не считается", "неа", "хватит дрочить"},
+	TextTypeLoading:      {"🐸 работаем", "🐸 мемы крутятся", "🐸 загружаю", "🐸 рофлы мутятся"},
 }
+
 var (
 	likelyDuplicateTexts = []string{"скорее всего это уже было"}
 )

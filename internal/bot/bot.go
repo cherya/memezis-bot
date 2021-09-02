@@ -111,7 +111,6 @@ func (b *MemezisBot) Start() error {
 		case err := <-errs:
 			fmt.Println("update error:", err)
 		case update := <-updates:
-			log.Debug(fmt.Sprintf("%v", update))
 			if update.Message != nil {
 				if b.isBanned(update.Message) {
 					if update.Message.Chat.IsPrivate() {
