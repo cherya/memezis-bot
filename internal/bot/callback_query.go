@@ -98,7 +98,11 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		}
 		markupUpdate = tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(false))
 		_, err = b.send(markupUpdate)
-		return errors.Wrap(err, "callbackQuery: can't update confirmed markup")
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't update confirmed markup")
+		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeSucessUpload)))
+		return errors.Wrap(err, "callbackQuery: can't answer to confirm callback")
 	case callbackActionTypeConfirmUploadAnon:
 		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createLoadingKeyboard())
 		_, err = b.send(markupUpdate)
@@ -111,17 +115,29 @@ func (b *MemezisBot) callbackQuery(ctx context.Context, callback *tgbotapi.Callb
 		}
 		markupUpdate = tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createConfirmedPostKeyboard(true))
 		_, err = b.send(markupUpdate)
-		return errors.Wrap(err, "callbackQuery: can't update confirmed anon markup")
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't update confirmed anon markup")
+		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, getText(TextTypeSucessUpload)))
+		return errors.Wrap(err, "callbackQuery: can't answer to confirmed anon callback")
 	case callbackActionTypeDeclineUpload:
 		markupUpdate := tgbotapi.NewEditMessageReplyMarkup(callback.Message.Chat.ID, callback.Message.MessageID, createDeclinedPostKeyboard())
 		_, err = b.send(markupUpdate)
-		return errors.Wrap(err, "callbackQuery: can't update declined markup")
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't update declined markup")
+		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, ""))
+		return errors.Wrap(err, "callbackQuery: can't answer to declined callback")
 	case callbackActionTypeRemoveCaption:
 		editMessage := tgbotapi.NewEditMessageCaption(callback.Message.Chat.ID, callback.Message.MessageID, "")
 		keyboard := createConfirmationKeyboard("")
 		editMessage.ReplyMarkup = &keyboard
 		_, err = b.send(editMessage)
-		return errors.Wrap(err, "callbackQuery: can't remove caption")
+		if err != nil {
+			return errors.Wrap(err, "callbackQuery: can't remove caption")
+		}
+		_, err = b.AnswerCallbackQuery(tgbotapi.NewCallback(callback.ID, ""))
+		return errors.Wrap(err, "callbackQuery: can't answer to remove caption callback")
 	}
 
 	return nil
