@@ -3,6 +3,7 @@ package bot
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/cherya/memezis-bot/internal/dailyword"
@@ -26,6 +27,7 @@ type MemezisBot struct {
 	uc                 UserCache
 	admins             []tgbotapi.ChatMember
 	limiter            <-chan time.Time
+	callbackAtom       *sync.Map
 }
 
 type Ban interface {
@@ -58,6 +60,7 @@ func NewBot(api *tgbotapi.BotAPI, queue *queue.Manager, mc memezis.MemezisClient
 		banHammer:          ban,
 		uc:                 uc,
 		limiter:            time.Tick(3 * time.Second),
+		callbackAtom:       &sync.Map{},
 	}
 
 	admins, err := api.GetChatAdministrators(tgbotapi.ChatAdministratorsConfig{
