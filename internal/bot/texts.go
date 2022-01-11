@@ -53,11 +53,7 @@ func getDuplicatesLinks(duplicates []*memezis.PostDuplicate) []string {
 	for _, c := range duplicates {
 		post := c.GetPost()
 		if post.GetSourceURL() != "" {
-			if post.GetSource() != "" {
-				links = append(links, fmt.Sprintf("[%s](%s)", post.GetSource(), post.GetSource()))
-			} else {
-				links = append(links, post.GetSourceURL())
-			}
+			links = append(links, post.GetSourceURL())
 		} else {
 			for _, p := range post.GetPublish() {
 				links = append(links, p.URL)
