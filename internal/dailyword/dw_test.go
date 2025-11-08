@@ -23,6 +23,11 @@ func Test_trimColons(t *testing.T) {
 			"test (test) test",
 			"test (test) test",
 		},
+		{
+			"closing bracket without opening bracket",
+			"test)",
+			"test)",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

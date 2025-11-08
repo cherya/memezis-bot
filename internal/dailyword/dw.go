@@ -101,7 +101,9 @@ func trimBrackets(s string) string {
 	s = strings.TrimSpace(s)
 	if strings.LastIndex(s, ")") == len(s)-1 {
 		idx := strings.LastIndex(s, "(")
-		s = s[:idx]
+		if idx > 0 {
+			s = s[:idx]
+		}
 	}
 	s = strings.TrimSpace(s)
 	return s
